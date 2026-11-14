@@ -15,10 +15,18 @@ $root = Split-Path -Parent $PSScriptRoot
 $envPath = Join-Path $root '.env'
 
 function Test-AppImages {
-    & docker image inspect 5-medvedey-backend:latest *> $null
-    if ($LASTEXITCODE -ne 0) { return $false }
-    & docker image inspect 5-medvedey-frontend:latest *> $null
-    return $LASTEXITCODE -eq 0
+    # docker image inspect пишет ошибку в stderr, если образа нет.
+    # При ErrorActionPreference=Stop это стало бы исключением.
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        & docker image inspect 5-medvedey-backend:latest *> $null
+        if ($LASTEXITCODE -ne 0) { return $false }
+        & docker image inspect 5-medvedey-frontend:latest *> $null
+        return $LASTEXITCODE -eq 0
+    } finally {
+        $ErrorActionPreference = $previous
+    }
 }
 
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
@@ -67,10 +75,14 @@ if (-not (Test-Path $envPath)) {
 # Без SECRET_KEY контейнер не стартует, поэтому генерируем его при первом запуске.
 $envLines = @(Get-Content $envPath)
 if (-not ($envLines | Where-Object { $_ -match '^\s*SECRET_KEY\s*=\s*\S' })) {
-    $secret = & python -c "import secrets; print(secrets.token_urlsafe(48))"
-    if (-not $secret) {
-        $secret = [guid]::NewGuid().ToString('N') + [guid]::NewGuid().ToString('N')
+    $bytes = New-Object byte[] 48
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    try {
+        $rng.GetBytes($bytes)
+    } finally {
+        $rng.Dispose()
     }
+    $secret = [Convert]::ToBase64String($bytes).Replace('+', '-').Replace('/', '_').TrimEnd('=')
     $envLines = $envLines | Where-Object { $_ -notmatch '^\s*#?\s*SECRET_KEY\s*=' }
     $envLines += "SECRET_KEY=$secret"
     $utf8 = New-Object System.Text.UTF8Encoding($false)

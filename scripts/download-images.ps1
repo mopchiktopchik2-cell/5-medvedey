@@ -20,7 +20,13 @@ $root = Split-Path -Parent $PSScriptRoot
 $releaseBase = 'https://github.com/mopchiktopchik2-cell/5-medvedey/releases/download/images'
 
 function Get-DockerArch {
-    $arch = (& docker version --format '{{.Server.Arch}}' 2>$null | Out-String).Trim()
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $arch = (& docker version --format '{{.Server.Arch}}' 2>$null | Out-String).Trim()
+    } finally {
+        $ErrorActionPreference = $previous
+    }
     if (-not $arch) {
         throw 'Docker не запущен. Запустите Docker Desktop и повторите.'
     }
@@ -28,10 +34,16 @@ function Get-DockerArch {
 }
 
 function Test-AppImages {
-    & docker image inspect 5-medvedey-backend:latest *> $null
-    if ($LASTEXITCODE -ne 0) { return $false }
-    & docker image inspect 5-medvedey-frontend:latest *> $null
-    return $LASTEXITCODE -eq 0
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        & docker image inspect 5-medvedey-backend:latest *> $null
+        if ($LASTEXITCODE -ne 0) { return $false }
+        & docker image inspect 5-medvedey-frontend:latest *> $null
+        return $LASTEXITCODE -eq 0
+    } finally {
+        $ErrorActionPreference = $previous
+    }
 }
 
 $arch = Get-DockerArch

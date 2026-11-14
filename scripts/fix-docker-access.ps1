@@ -53,8 +53,14 @@ function Test-RegistryUrl {
 }
 
 function Test-DockerEngine {
-    & docker info 2>$null | Out-Null
-    return ($LASTEXITCODE -eq 0)
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        & docker info 2>$null | Out-Null
+        return ($LASTEXITCODE -eq 0)
+    } finally {
+        $ErrorActionPreference = $previous
+    }
 }
 
 function Wait-DockerEngine {
