@@ -89,7 +89,7 @@
 - Резервное копирование и восстановление (`scripts/backup.ps1`, `scripts/restore.ps1`) для PostgreSQL, SQLite в Docker и локального запуска.
 - Боевой контур с Caddy: HTTPS, автоматический сертификат, CSP и заголовки безопасности; наружу только 80/443.
 - Healthcheck-и backend/frontend в Docker и ротация логов контейнеров.
-- Сквозной E2E на Playwright: вход, смета, история, PDF, импорт CSV.
+- Сквозной E2E на Playwright: вход, смета, история, PDF, импорт CSV; запускается локально и в CI на Docker-стенде.
 - Раскадровка видео-гайда `docs/video-storyboard.md`.
 
 Тестов сейчас: 75 бэкенд-тестов (pytest), 13 фронтенд-тестов (vitest) и 3 сквозных E2E-сценария (Playwright).

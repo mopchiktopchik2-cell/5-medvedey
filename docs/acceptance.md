@@ -60,7 +60,7 @@ cd 5-medvedey
 - `docs/requirements-checklist.md` — матрица соответствия исходному ТЗ.
 - `Caddyfile` + `docker-compose.caddy.yml` — HTTPS с автоматическим сертификатом, CSP и заголовки безопасности; наружу открыты только 80/443.
 - `scripts/backup.ps1` и `scripts/restore.ps1` — копия базы, логотипа и outbox в архив с манифестом; три режима (PostgreSQL, SQLite в Docker, локальный).
-- Миграции Alembic с безопасным baseline, CI в GitHub Actions.
+- Миграции Alembic с безопасным baseline, CI в GitHub Actions: бэкенд-тесты, проверка миграций, фронтенд и сквозной E2E на Docker-стенде.
 
 ## 5. Расчёт и PDF за 5–10 минут
 
@@ -82,6 +82,7 @@ cd 5-medvedey
 - [ ] Публичная ссылка открывается без входа, после отзыва — 404.
 - [ ] Менеджер не видит чужие расчёты и не может править справочники.
 - [ ] `pytest`, `npm test`, `npm run build`, `ruff check` проходят.
+- [ ] В GitHub Actions зелёные три job-а: `backend`, `frontend`, `e2e`.
 - [ ] `.\scripts\backup.ps1` создаёт архив, `.\scripts\restore.ps1` восстанавливает его в тестовую папку.
 - [ ] `docker compose -f docker-compose.yml -f docker-compose.caddy.yml config` не показывает портов 8000 и 5173 наружу.
 

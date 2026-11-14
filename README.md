@@ -90,7 +90,7 @@ python -m app.cli create-user --email boss@example.ru --name "Иванов И. �
 
 - **Backend:** Python 3.11, FastAPI, SQLAlchemy 2.0, SQLite (по умолчанию) / PostgreSQL, JWT в httpOnly cookie, argon2-хеши, fpdf2 для PDF, Alembic для миграций.
 - **Frontend:** React 19, TypeScript, Vite, React Router, oxlint, vitest, Playwright (сквозной E2E).
-- **Инфраструктура:** Docker Compose, Caddy (HTTPS), GitHub Actions (ruff, pytest, проверка миграций, oxlint, vitest, сборка).
+- **Инфраструктура:** Docker Compose, Caddy (HTTPS), GitHub Actions (ruff, pytest, проверка миграций, oxlint, vitest, сборка, E2E на Docker-стенде).
 
 ## Интерфейс
 
@@ -365,7 +365,7 @@ cd frontend
 npm run test:e2e
 ```
 
-E2E использует установленный Microsoft Edge (канал `msedge`) и не требует скачивания браузеров. В CI он не запускается: там нет Docker-стенда, поэтому сквозная проверка выполняется локально перед показом.
+E2E использует установленный Microsoft Edge (канал `msedge`) и не скачивает браузеры на машине разработчика. В GitHub Actions отдельная job `e2e` поднимает LAN-стенд в Docker, ставит Chromium (`npx playwright install --with-deps chromium`), ждёт `/api/health` и запускает те же сценарии на чистой базе. При падении в артефакты попадают отчёт Playwright, скриншоты и логи контейнеров.
 
 ## Ограничения и планы
 
