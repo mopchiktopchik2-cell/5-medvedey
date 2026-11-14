@@ -8,6 +8,7 @@ from fpdf import FPDF
 
 from app.branding import logo_path
 from app.models import Estimate, Settings
+from app.timeutil import to_local
 
 FONT_DIR = Path(__file__).parent / "assets" / "fonts"
 FONT_REGULAR = FONT_DIR / "PT_Sans-Regular.ttf"
@@ -133,7 +134,7 @@ def build_estimate_pdf(estimate: Estimate, settings_row: Settings) -> bytes:
     pdf.cell(0, 10, f"Коммерческое предложение № {estimate.number}", new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("PTSans", "", 9)
     pdf.set_text_color(*MUTED)
-    pdf.cell(0, 5, f"от {fmt_date(estimate.created_at)}", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 5, f"от {fmt_date(to_local(estimate.created_at))}", new_x="LMARGIN", new_y="NEXT")
     pdf.set_text_color(0, 0, 0)
     pdf.ln(4)
 
@@ -290,7 +291,7 @@ def build_estimate_pdf(estimate: Estimate, settings_row: Settings) -> bytes:
     pdf.cell(70, 6, "Ответственный: " + (estimate.author.full_name if estimate.author else "—"))
     pdf.cell(0, 6, "Подпись: ____________________", align="R", new_x="LMARGIN", new_y="NEXT")
 
-    generated = datetime.now(UTC).astimezone().strftime("%d.%m.%Y %H:%M")
+    generated = to_local(datetime.now(UTC)).strftime("%d.%m.%Y %H:%M")
     pdf.set_font("PTSans", "", 7.5)
     pdf.set_text_color(*MUTED)
     pdf.cell(0, 5, f"Документ сформирован {generated}", new_x="LMARGIN", new_y="NEXT")

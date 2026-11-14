@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { dateOnly, dateTime, money, number, percent, plural } from './format'
+import {
+  dateOnly,
+  dateTime,
+  money,
+  number,
+  parseDate,
+  parseDecimal,
+  percent,
+  plural,
+} from './format'
 
 describe('money', () => {
   it('форматирует сумму с копейками и знаком рубля', () => {
@@ -46,10 +55,37 @@ describe('plural', () => {
   })
 })
 
+describe('parseDecimal', () => {
+  it('принимает запятую как разделитель и пробелы между разрядами', () => {
+    expect(parseDecimal('1,5')).toBe(1.5)
+    expect(parseDecimal('1 234,50')).toBe(1234.5)
+    expect(parseDecimal('180')).toBe(180)
+  })
+
+  it('возвращает NaN для пустого поля', () => {
+    expect(Number.isNaN(parseDecimal(''))).toBe(true)
+    expect(Number.isNaN(parseDecimal('  '))).toBe(true)
+  })
+})
+
+describe('parseDate', () => {
+  it('считает время без зоны как UTC', () => {
+    expect(parseDate('2026-03-04T10:00:00').getTime()).toBe(Date.UTC(2026, 2, 4, 10))
+  })
+
+  it('уважает явно указанную зону', () => {
+    expect(parseDate('2026-03-04T13:00:00+03:00').getTime()).toBe(Date.UTC(2026, 2, 4, 10))
+    expect(parseDate('2026-03-04T10:00:00.123Z').getTime()).toBe(
+      Date.UTC(2026, 2, 4, 10, 0, 0, 123),
+    )
+  })
+})
+
 describe('даты', () => {
-  it('разбирает корректную дату', () => {
-    expect(dateOnly('2026-03-04T10:00:00')).toMatch(/^0?4\.0?3\.2026$/)
-    expect(dateTime('2026-03-04T10:00:00')).toMatch(/^\d{2}\.\d{2}\.\d{4}, \d{2}:\d{2}$/)
+  it('форматирует корректную дату', () => {
+    const local = new Date(2026, 2, 4, 10, 0)
+    expect(dateOnly(local.toISOString())).toMatch(/^0?4\.0?3\.2026$/)
+    expect(dateTime(local.toISOString())).toMatch(/^\d{2}\.\d{2}\.\d{4}, \d{2}:\d{2}$/)
   })
 
   it('возвращает прочерк для некорректной даты', () => {

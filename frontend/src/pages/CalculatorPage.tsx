@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, type Dictionaries, type EstimatePreview, type EstimateRequest } from '../api'
 import { DRAFT_KEY } from '../draft'
-import { money, number, percent, plural } from '../format'
+import { money, number, parseDecimal, percent, plural } from '../format'
 
 type PartRow = { key: string; name: string; length: string; width: string; count: string }
 
@@ -79,21 +79,76 @@ function withKeys(rows: Omit<PartRow, 'key'>[]): PartRow[] {
   return rows.map((row) => ({ ...row, key: nextKey() }))
 }
 
+function asText(value: unknown, fallback: string): string {
+  return typeof value === 'string' ? value : fallback
+}
+
+function recordOfStrings(value: unknown): Record<string, string> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  return Object.fromEntries(
+    Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
+  )
+}
+
 function loadDraft(): FormState | null {
   try {
     const raw = localStorage.getItem(DRAFT_KEY)
     if (!raw) return null
-    const parsed = JSON.parse(raw) as FormState
-    if (!parsed || !Array.isArray(parsed.parts)) return null
-    return { ...emptyForm(), ...parsed, parts: withKeys(parsed.parts) }
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.parts)) return null
+    const base = emptyForm()
+    // Черновик мог быть записан старой версией или испорчен вручную:
+    // приводим каждое поле к ожидаемому типу, чтобы страница не падала.
+    const parts = (parsed.parts as unknown[])
+      .filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === 'object')
+      .map((row) => ({
+        key: nextKey(),
+        name: asText(row.name, ''),
+        length: asText(row.length, ''),
+        width: asText(row.width, ''),
+        count: asText(row.count, '1'),
+      }))
+    return {
+      ...base,
+      productTypeId: asText(parsed.productTypeId, base.productTypeId),
+      complexityId: asText(parsed.complexityId, base.complexityId),
+      quantity: asText(parsed.quantity, base.quantity),
+      hasLining: parsed.hasLining === true,
+      hasHood: parsed.hasHood === true,
+      hasPockets: parsed.hasPockets === true,
+      fabricId: asText(parsed.fabricId, base.fabricId),
+      fabricWidth: asText(parsed.fabricWidth, base.fabricWidth),
+      fabricPrice: asText(parsed.fabricPrice, base.fabricPrice),
+      waste: asText(parsed.waste, base.waste),
+      seam: asText(parsed.seam, base.seam),
+      parts,
+      hardwareQty: recordOfStrings(parsed.hardwareQty),
+      brandingPos: recordOfStrings(parsed.brandingPos),
+      contractorName: asText(parsed.contractorName, base.contractorName),
+      notes: asText(parsed.notes, base.notes),
+    }
   } catch {
     return null
   }
 }
 
-function parseNumber(value: string): number {
-  const normalized = value.replace(',', '.').trim()
-  return normalized === '' ? Number.NaN : Number(normalized)
+/** Проблема в строке детали; null — строка корректна или полностью пустая. */
+function partProblem(row: PartRow): string | null {
+  const name = row.name.trim()
+  const length = parseDecimal(row.length)
+  const width = parseDecimal(row.width)
+  const count = parseDecimal(row.count)
+  const touched =
+    Boolean(name) ||
+    row.length.trim() !== '' ||
+    row.width.trim() !== '' ||
+    (row.count.trim() !== '' && row.count.trim() !== '1')
+  if (!touched) return null
+  if (!name) return 'название'
+  if (!Number.isFinite(length) || length <= 0) return 'длина'
+  if (!Number.isFinite(width) || width <= 0) return 'ширина'
+  if (!Number.isInteger(count) || count < 1) return 'количество'
+  return null
 }
 
 export function CalculatorPage() {
@@ -150,35 +205,26 @@ export function CalculatorPage() {
 
   const payload = useMemo<EstimateRequest | null>(() => {
     if (!form.productTypeId || !form.complexityId || !form.fabricId) return null
-    const quantity = parseNumber(form.quantity)
+    const quantity = parseDecimal(form.quantity)
     if (!Number.isFinite(quantity) || quantity < 1) return null
 
     const parts = form.parts
+      .filter((row) => row.name.trim() && partProblem(row) === null)
       .map((row) => ({
         name: row.name.trim(),
-        length_cm: parseNumber(row.length),
-        width_cm: parseNumber(row.width),
-        count_per_unit: parseNumber(row.count),
+        length_cm: parseDecimal(row.length),
+        width_cm: parseDecimal(row.width),
+        count_per_unit: parseDecimal(row.count),
       }))
-      .filter(
-        (row) =>
-          row.name &&
-          Number.isFinite(row.length_cm) &&
-          row.length_cm > 0 &&
-          Number.isFinite(row.width_cm) &&
-          row.width_cm > 0 &&
-          Number.isFinite(row.count_per_unit) &&
-          row.count_per_unit >= 1,
-      )
 
     if (!parts.length) return null
 
     const hardware = Object.entries(form.hardwareQty)
-      .map(([id, qty]) => ({ hardware_id: Number(id), qty_per_unit: parseNumber(qty) || 0 }))
+      .map(([id, qty]) => ({ hardware_id: Number(id), qty_per_unit: parseDecimal(qty) || 0 }))
       .filter((line) => line.qty_per_unit > 0)
 
     const branding = Object.entries(form.brandingPos)
-      .map(([id, positions]) => ({ branding_id: Number(id), positions: parseNumber(positions) || 0 }))
+      .map(([id, positions]) => ({ branding_id: Number(id), positions: parseDecimal(positions) || 0 }))
       .filter((line) => line.positions > 0)
 
     const result: EstimateRequest = {
@@ -196,13 +242,13 @@ export function CalculatorPage() {
       notes: form.notes.trim() || null,
     }
 
-    const width = parseNumber(form.fabricWidth)
+    const width = parseDecimal(form.fabricWidth)
     if (Number.isFinite(width) && width > 0) result.fabric_width_cm = width
-    const price = parseNumber(form.fabricPrice)
+    const price = parseDecimal(form.fabricPrice)
     if (Number.isFinite(price) && price >= 0) result.fabric_price_per_m = price
-    const waste = parseNumber(form.waste)
+    const waste = parseDecimal(form.waste)
     if (Number.isFinite(waste) && waste >= 0) result.waste_coefficient = waste / 100
-    const seam = parseNumber(form.seam)
+    const seam = parseDecimal(form.seam)
     if (Number.isFinite(seam) && seam >= 0) result.seam_allowance_cm = seam
 
     return result
@@ -256,6 +302,11 @@ export function CalculatorPage() {
     }
     return [...duplicates]
   })()
+
+  // Строки с недозаполненными размерами не должны молча выпадать из расчёта.
+  const invalidParts = form.parts
+    .map((row, index) => ({ index, problem: partProblem(row) }))
+    .filter((item) => item.problem !== null)
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     touched.current = true
@@ -321,6 +372,10 @@ export function CalculatorPage() {
   }
 
   async function handleSave() {
+    if (invalidParts.length) {
+      setSaveError('Заполните название, размеры и целое количество у всех деталей кроя.')
+      return
+    }
     if (!payload || !preview) return
     setSaving(true)
     setSaveError(null)
@@ -335,7 +390,7 @@ export function CalculatorPage() {
     }
   }
 
-  const rollWidth = parseNumber(form.fabricWidth) || fabric?.width_cm || 0
+  const rollWidth = parseDecimal(form.fabricWidth) || fabric?.width_cm || 0
 
   return (
     <div className="page">
@@ -569,8 +624,17 @@ export function CalculatorPage() {
                 количество задаётся в колонке «В комплекте».
               </p>
             )}
+            {invalidParts.length > 0 && (
+              <p className="hint hint--danger">
+                Не хватает данных:{' '}
+                {invalidParts
+                  .map((item) => `строка ${item.index + 1} — ${item.problem}`)
+                  .join('; ')}
+                . Такие детали не попадут в расчёт.
+              </p>
+            )}
             <p className="hint">
-              Припуск {number(parseNumber(form.seam) || 0, 1)} см добавляется с каждой стороны детали.
+              Припуск {number(parseDecimal(form.seam) || 0, 1)} см добавляется с каждой стороны детали.
             </p>
           </section>
 

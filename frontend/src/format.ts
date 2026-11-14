@@ -14,8 +14,28 @@ export function number(value: number | null | undefined, digits = 2): string {
   })
 }
 
+/**
+ * Разбирает дату из API. SQLite/SQLAlchemy отдают время в UTC без зоны —
+ * без суффикса «Z» браузер принял бы его за локальное и сдвинул бы
+ * на величину часового пояса.
+ */
+export function parseDate(value: string): Date {
+  if (!value) return new Date(Number.NaN)
+  const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(value)
+  return new Date(hasZone ? value : `${value}Z`)
+}
+
+/**
+ * Разбирает число из поля ввода: принимает запятую как десятичный
+ * разделитель и пробелы между разрядами. Пустая строка — NaN.
+ */
+export function parseDecimal(value: string): number {
+  const normalized = value.replace(/[\s\u00a0]/g, '').replace(',', '.')
+  return normalized === '' ? Number.NaN : Number(normalized)
+}
+
 export function dateTime(value: string): string {
-  const parsed = new Date(value)
+  const parsed = parseDate(value)
   if (Number.isNaN(parsed.getTime())) return '—'
   return parsed.toLocaleString('ru-RU', {
     day: '2-digit',
@@ -27,7 +47,7 @@ export function dateTime(value: string): string {
 }
 
 export function dateOnly(value: string): string {
-  const parsed = new Date(value)
+  const parsed = parseDate(value)
   if (Number.isNaN(parsed.getTime())) return '—'
   return parsed.toLocaleDateString('ru-RU')
 }

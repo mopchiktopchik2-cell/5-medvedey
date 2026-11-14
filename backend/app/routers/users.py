@@ -67,7 +67,14 @@ def update_user(
     user = _get_user(session, user_id)
     changes = payload.model_dump(exclude_unset=True, exclude_none=True)
 
-    demoting = changes.get("role") == UserRole.MANAGER or changes.get("is_active") is False
+    # Сравниваем с текущими значениями: сохранение формы без изменений
+    # не должно отзывать сессии сотрудника.
+    role_changed = "role" in changes and changes["role"] != user.role
+    active_changed = "is_active" in changes and changes["is_active"] != user.is_active
+    password_changed = "password" in changes
+    demoting = (role_changed and changes["role"] == UserRole.MANAGER) or (
+        active_changed and changes["is_active"] is False
+    )
     if user.id == current.id and demoting:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
@@ -86,13 +93,13 @@ def update_user(
 
     if "full_name" in changes:
         user.full_name = changes["full_name"].strip()
-    if "role" in changes:
+    if role_changed:
         user.role = changes["role"]
-    if "is_active" in changes:
+    if active_changed:
         user.is_active = changes["is_active"]
-    if "password" in changes:
+    if password_changed:
         user.password_hash = hash_password(changes["password"])
-    if {"role", "is_active", "password"} & changes.keys():
+    if role_changed or active_changed or password_changed:
         # Роль и пароль вшиты в токен: старые сессии должны закончиться.
         user.token_version += 1
 

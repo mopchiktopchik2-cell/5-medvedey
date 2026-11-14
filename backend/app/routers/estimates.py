@@ -34,6 +34,7 @@ from app.schemas import (
 )
 from app.security import CurrentUser
 from app.services import CalculationError, calculate, get_settings_row
+from app.timeutil import day_start_utc, next_day_start_utc, to_local
 
 router = APIRouter(prefix="/estimates", tags=["estimates"])
 public_router = APIRouter(prefix="/public", tags=["public"])
@@ -87,6 +88,17 @@ def _resolve_contractor(
         return None, None
 
     contractor = session.scalar(select(Contractor).where(Contractor.name == name))
+    if contractor is None:
+        # SQLite не умеет lower() для кириллицы: ищем без учёта регистра в Python.
+        key = name.casefold()
+        contractor = next(
+            (
+                item
+                for item in session.scalars(select(Contractor))
+                if item.name.strip().casefold() == key
+            ),
+            None,
+        )
     if contractor is None:
         contractor = Contractor(name=name)
         session.add(contractor)
@@ -191,7 +203,7 @@ def create_estimate(payload: EstimateRequest, session: SessionDep, user: Current
 
     session.add(estimate)
     session.flush()
-    estimate.number = f"КП-{estimate.created_at.year}-{estimate.id:04d}"
+    estimate.number = f"КП-{to_local(estimate.created_at).year}-{estimate.id:04d}"
     session.commit()
     session.refresh(estimate)
     return estimate
@@ -209,9 +221,9 @@ def _filter_conditions(
     if user.role != UserRole.TECHNOLOGIST:
         conditions.append(Estimate.author_id == user.id)
     if date_from is not None:
-        conditions.append(Estimate.created_at >= date_from)
+        conditions.append(Estimate.created_at >= day_start_utc(date_from))
     if date_to is not None:
-        conditions.append(Estimate.created_at < date_to + timedelta(days=1))
+        conditions.append(Estimate.created_at < next_day_start_utc(date_to))
     if contractor_id is not None:
         conditions.append(Estimate.contractor_id == contractor_id)
     if product_type_id is not None:
@@ -307,7 +319,7 @@ def export_estimates_csv(
         writer.writerow(
             [
                 item.number,
-                f"{item.created_at:%d.%m.%Y %H:%M}",
+                to_local(item.created_at).strftime("%d.%m.%Y %H:%M"),
                 item.contractor_name or "",
                 item.product_type_name,
                 item.complexity_name,
@@ -324,7 +336,7 @@ def export_estimates_csv(
             ]
         )
 
-    filename = f"kp-history-{date.today():%Y-%m-%d}.csv"
+    filename = f"kp-history-{to_local(datetime.now(UTC)):%Y-%m-%d}.csv"
     return Response(
         content=buffer.getvalue(),
         media_type="text/csv; charset=utf-8",

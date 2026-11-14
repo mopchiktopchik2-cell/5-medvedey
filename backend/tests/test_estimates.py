@@ -1,9 +1,12 @@
+from datetime import datetime
 from io import BytesIO
 
 from fastapi.testclient import TestClient
 from PIL import Image
+from sqlalchemy.orm import sessionmaker
 
 from app.config import settings
+from app.models import Estimate
 
 
 def _dictionaries(client: TestClient) -> dict:
@@ -128,6 +131,26 @@ def test_history_search_and_filter(client: TestClient) -> None:
 
     everything = client.get("/api/estimates").json()
     assert everything["total"] == 2
+
+
+def test_history_date_filter_uses_local_day(
+    client: TestClient, session_factory: sessionmaker
+) -> None:
+    estimate = client.post("/api/estimates", json=_payload(client)).json()
+    # 19:30 UTC — это уже 00:30 следующего дня в Сургуте (UTC+5).
+    with session_factory() as session:
+        row = session.get(Estimate, estimate["id"])
+        assert row is not None
+        row.created_at = datetime(2026, 3, 4, 19, 30)
+        session.commit()
+
+    def ids(day: str) -> list[int]:
+        response = client.get("/api/estimates", params={"date_from": day, "date_to": day})
+        assert response.status_code == 200, response.text
+        return [item["id"] for item in response.json()["items"]]
+
+    assert estimate["id"] not in ids("2026-03-04")
+    assert estimate["id"] in ids("2026-03-05")
 
 
 def test_search_is_case_insensitive_for_cyrillic(client: TestClient) -> None:
@@ -287,6 +310,17 @@ def test_new_contractor_name_creates_profile(client: TestClient) -> None:
 
     profiles = _dictionaries(client)["contractors"]
     assert any(item["name"] == name for item in profiles)
+
+
+def test_contractor_name_is_reused_case_insensitively(client: TestClient) -> None:
+    name = "ООО «Регистр подрядчика»"
+
+    client.post("/api/estimates", json=_payload(client, contractor_name=name))
+    client.post("/api/estimates", json=_payload(client, contractor_name="ооо «регистр подрядчика»"))
+
+    profiles = _dictionaries(client)["contractors"]
+    matches = [item for item in profiles if item["name"].casefold() == name.casefold()]
+    assert len(matches) == 1
 
 
 def test_technologist_can_update_settings(technologist_client: TestClient) -> None:

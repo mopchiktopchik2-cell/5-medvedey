@@ -101,6 +101,8 @@ python -m app.cli create-user --email boss@example.ru --name "Иванов И. �
 ## Структура
 
 ```
+start-site.cmd         запуск сайта двойным щелчком (Docker + браузер)
+stop-site.cmd          остановка стенда, данные сохраняются
 backend/
   app/
     calculators.py     чистые функции: раскладка, пошив, смета, сроки
@@ -119,7 +121,7 @@ backend/
   migrations/          Alembic: baseline-миграция и окружение
   alembic.ini
   entrypoint.sh        миграции + запуск uvicorn в контейнере
-  tests/               75 тестов: формулы, API, права, PDF, email, CSV, логотип,
+  tests/               88 тестов: формулы, API, права, PDF, email, CSV, логотип,
                        подрядчики, сотрудники, публичные ссылки, rate-limit,
                        справочники, отзыв сессий и идемпотентность сида
 frontend/
@@ -136,8 +138,10 @@ frontend/
 scripts/
   setup.ps1            установка зависимостей и генерация SECRET_KEY
   dev.ps1              запуск бэкенда и фронтенда
+  start-mir.ps1        запуск «одним ярлыком»: Docker + LAN-стенд + браузер
   start-lan.ps1        запуск в Docker для внутренней сети (порт 8080)
   stop-lan.ps1         остановка LAN-стенда
+  create-shortcuts.ps1 ярлыки «М.и.Р. — сайт» и «М.и.Р. — остановить»
   backup.ps1           резервная копия базы, логотипа и outbox
   restore.ps1          восстановление из архива
   check_migrations.py  проверка сценариев миграций
@@ -219,6 +223,25 @@ docker compose exec backend python -m app.cli create-user --email boss@example.r
 
 Скрипт сам создаёт `.env`, генерирует `SECRET_KEY`, поднимает стек и печатает адрес вида `http://192.168.1.42:8080`. Демо-доступы: `manager@mir.ru` / `manager123` и `technologist@mir.ru` / `technolog123`.
 
+### Запуск одним ярлыком
+
+Чтобы каждый раз не открывать PowerShell, создайте ярлыки один раз:
+
+```powershell
+.\scripts\create-shortcuts.ps1
+```
+
+На рабочем столе появятся «М.и.Р. — сайт» и «М.и.Р. — остановить». Ярлык запуска сам:
+
+- проверяет Docker и при необходимости открывает Docker Desktop;
+- ждёт готовности движка (до 4 минут);
+- собирает и поднимает контейнеры, ждёт ответа `/api/health`;
+- открывает сайт в браузере.
+
+Если Docker не установлен или не запустился, окно не закроется и покажет, что делать. При переносе папки проекта на другой компьютер ярлыки нужно создать заново.
+
+После перезагрузки сайт поднимется сам, если в Docker Desktop включить «Start Docker Desktop when you sign in»: у контейнеров стоит `restart: unless-stopped`, и они стартуют вместе с Docker.
+
 С другого компьютера сайт открывается по этому адресу. Если не открывается — разрешите порт 8080 в брандмауэре Windows от имени администратора:
 
 ```powershell
@@ -293,6 +316,7 @@ SMTP можно указать любого российского провай�
 | `COOKIE_SECURE` | авто | `true`/`false` жёстко задаёт secure-cookie; пусто — включать только в production |
 | `SEED_DEMO_DATA` | `true` (в compose — `false`) | заполнение справочников и демо-учёток при пустой базе |
 | `SHARE_TOKEN_TTL_DAYS` | `30` | срок жизни публичной ссылки на КП |
+| `UTC_OFFSET_HOURS` | `5` | смещение часового пояса цеха от UTC для дат в PDF, письмах, CSV и фильтрах истории |
 | `LOGIN_MAX_ATTEMPTS` | `5` | неудачных попыток входа до блокировки |
 | `LOGIN_LOCKOUT_MINUTES` | `15` | на сколько минут блокируется вход |
 | `SMTP_HOST` | пусто | SMTP-сервер; пока пусто, письма пишутся в `data/outbox` |

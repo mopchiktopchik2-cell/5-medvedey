@@ -41,6 +41,23 @@ def test_reimport_updates_existing_row(technologist_client: TestClient) -> None:
     assert fabric["price_per_m"] == 120.0
 
 
+def test_duplicate_rows_in_one_file_are_merged(technologist_client: TestClient) -> None:
+    content = (
+        "name;width_cm;price_per_m\n" "Ткань-дубль;180;100\n" "Ткань-дубль;190;120\n"
+    ).encode()
+
+    response = _upload(technologist_client, "fabrics", content)
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {"created": 1, "updated": 1, "errors": []}
+
+    fabrics = technologist_client.get("/api/dictionaries").json()["fabrics"]
+    matches = [item for item in fabrics if item["name"] == "Ткань-дубль"]
+    assert len(matches) == 1
+    assert matches[0]["width_cm"] == 190.0
+    assert matches[0]["price_per_m"] == 120.0
+
+
 def test_import_reads_cp1251_and_semicolon(technologist_client: TestClient) -> None:
     content = "name;price\nНитки тест;50\n".encode("cp1251")
 

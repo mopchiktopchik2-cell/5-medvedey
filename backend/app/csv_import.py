@@ -317,6 +317,7 @@ def apply_rows(session: Session, kind: str, items: list[dict[str, str]]) -> tupl
                     factor=Decimal(item["factor"]),
                 )
                 session.add(entity)
+                existing_levels[item["code"].casefold()] = entity
                 created += 1
             else:
                 entity.name = item["name"]
@@ -329,6 +330,9 @@ def apply_rows(session: Session, kind: str, items: list[dict[str, str]]) -> tupl
         if entity is None:
             entity = model(name=item["name"])
             session.add(entity)
+            # Запоминаем строку сразу: иначе дубль внутри одного файла
+            # создаст две записи и упадёт на UNIQUE(name).
+            existing_by_name[item["name"].casefold()] = entity
             created += 1
         else:
             updated += 1

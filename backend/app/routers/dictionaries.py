@@ -46,6 +46,33 @@ def _active(session: Session, model: type) -> list:
     return list(session.scalars(select(model).order_by(model.id)))
 
 
+def _ensure_unique_name(
+    session: Session,
+    model: type[Model],
+    value: str,
+    title: str,
+    entity_id: int | None = None,
+) -> None:
+    """Не даёт создать второй справочник с тем же названием (без учёта регистра)."""
+    needle = value.strip().casefold()
+    for row in session.scalars(select(model)):
+        if row.id != entity_id and row.name.strip().casefold() == needle:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                f"{title} с названием «{value.strip()}» уже есть",
+            )
+
+
+def _ensure_unique_code(session: Session, value: str, entity_id: int | None = None) -> None:
+    needle = value.strip().casefold()
+    for row in session.scalars(select(ComplexityLevel)):
+        if row.id != entity_id and row.code.strip().casefold() == needle:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                f"Уровень с кодом «{value.strip()}» уже есть",
+            )
+
+
 @router.get("/dictionaries", response_model=DictionariesRead)
 def read_dictionaries(session: SessionDep, _: CurrentUser) -> DictionariesRead:
     return DictionariesRead(
@@ -105,6 +132,7 @@ def download_template(kind: str) -> Response:
     "/dictionaries/fabrics", response_model=FabricRead, status_code=status.HTTP_201_CREATED
 )
 def create_fabric(payload: FabricBase, session: SessionDep, _: Technologist) -> Fabric:
+    _ensure_unique_name(session, Fabric, payload.name, "Ткань")
     fabric = Fabric(**payload.model_dump())
     session.add(fabric)
     session.commit()
@@ -117,6 +145,7 @@ def update_fabric(
     fabric_id: int, payload: FabricBase, session: SessionDep, _: Technologist
 ) -> Fabric:
     fabric = _get_or_404(session, Fabric, fabric_id, "Ткань")
+    _ensure_unique_name(session, Fabric, payload.name, "Ткань", fabric.id)
     for field, value in payload.model_dump().items():
         setattr(fabric, field, value)
     session.commit()
@@ -138,6 +167,7 @@ def deactivate_fabric(fabric_id: int, session: SessionDep, _: Technologist) -> N
     "/dictionaries/hardware", response_model=HardwareRead, status_code=status.HTTP_201_CREATED
 )
 def create_hardware(payload: HardwareBase, session: SessionDep, _: Technologist) -> Hardware:
+    _ensure_unique_name(session, Hardware, payload.name, "Фурнитура")
     hardware = Hardware(**payload.model_dump())
     session.add(hardware)
     session.commit()
@@ -150,6 +180,7 @@ def update_hardware(
     hardware_id: int, payload: HardwareBase, session: SessionDep, _: Technologist
 ) -> Hardware:
     hardware = _get_or_404(session, Hardware, hardware_id, "Фурнитура")
+    _ensure_unique_name(session, Hardware, payload.name, "Фурнитура", hardware.id)
     for field, value in payload.model_dump().items():
         setattr(hardware, field, value)
     session.commit()
@@ -171,6 +202,7 @@ def deactivate_hardware(hardware_id: int, session: SessionDep, _: Technologist) 
     "/dictionaries/branding", response_model=BrandingRead, status_code=status.HTTP_201_CREATED
 )
 def create_branding(payload: BrandingBase, session: SessionDep, _: Technologist) -> Branding:
+    _ensure_unique_name(session, Branding, payload.name, "Брендирование")
     branding = Branding(**payload.model_dump())
     session.add(branding)
     session.commit()
@@ -183,6 +215,7 @@ def update_branding(
     branding_id: int, payload: BrandingBase, session: SessionDep, _: Technologist
 ) -> Branding:
     branding = _get_or_404(session, Branding, branding_id, "Брендирование")
+    _ensure_unique_name(session, Branding, payload.name, "Брендирование", branding.id)
     for field, value in payload.model_dump().items():
         setattr(branding, field, value)
     session.commit()
@@ -208,6 +241,7 @@ def deactivate_branding(branding_id: int, session: SessionDep, _: Technologist) 
 def create_product_type(
     payload: ProductTypeBase, session: SessionDep, _: Technologist
 ) -> ProductType:
+    _ensure_unique_name(session, ProductType, payload.name, "Тип изделия")
     product_type = ProductType(**payload.model_dump())
     session.add(product_type)
     session.commit()
@@ -220,6 +254,7 @@ def update_product_type(
     product_type_id: int, payload: ProductTypeBase, session: SessionDep, _: Technologist
 ) -> ProductType:
     product_type = _get_or_404(session, ProductType, product_type_id, "Тип изделия")
+    _ensure_unique_name(session, ProductType, payload.name, "Тип изделия", product_type.id)
     for field, value in payload.model_dump().items():
         setattr(product_type, field, value)
     session.commit()
@@ -245,6 +280,7 @@ def deactivate_product_type(product_type_id: int, session: SessionDep, _: Techno
 def create_complexity(
     payload: ComplexityBase, session: SessionDep, _: Technologist
 ) -> ComplexityLevel:
+    _ensure_unique_code(session, payload.code)
     level = ComplexityLevel(**payload.model_dump())
     session.add(level)
     session.commit()
@@ -257,6 +293,7 @@ def update_complexity(
     level_id: int, payload: ComplexityBase, session: SessionDep, _: Technologist
 ) -> ComplexityLevel:
     level = _get_or_404(session, ComplexityLevel, level_id, "Коэффициент сложности")
+    _ensure_unique_code(session, payload.code, level.id)
     for field, value in payload.model_dump().items():
         setattr(level, field, value)
     session.commit()
@@ -282,7 +319,15 @@ def update_settings(payload: SettingsUpdate, session: SessionDep, _: Technologis
 
 @router.post("/contractors", response_model=ContractorRead, status_code=status.HTTP_201_CREATED)
 def create_contractor(payload: ContractorBase, session: SessionDep, _: Technologist) -> Contractor:
-    existing = session.scalar(select(Contractor).where(Contractor.name == payload.name))
+    key = payload.name.strip().casefold()
+    existing = next(
+        (
+            item
+            for item in session.scalars(select(Contractor))
+            if item.name.strip().casefold() == key
+        ),
+        None,
+    )
     if existing:
         return existing
     contractor = Contractor(**payload.model_dump())
@@ -297,6 +342,7 @@ def update_contractor(
     contractor_id: int, payload: ContractorBase, session: SessionDep, _: Technologist
 ) -> Contractor:
     contractor = _get_or_404(session, Contractor, contractor_id, "Подрядчик")
+    _ensure_unique_name(session, Contractor, payload.name, "Подрядчик", contractor.id)
     contractor.name = payload.name
     contractor.contact_email = payload.contact_email
     contractor.phone = payload.phone

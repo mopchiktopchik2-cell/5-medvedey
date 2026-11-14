@@ -87,6 +87,45 @@ def test_technologist_can_reset_user_password(technologist_client: TestClient) -
     assert response.status_code == 200
 
 
+def test_saving_unchanged_profile_keeps_session(technologist_client: TestClient) -> None:
+    """Сохранение ФИО без смены роли не должно разлогинивать сотрудника."""
+    users = technologist_client.get("/api/users").json()
+    me = next(item for item in users if item["email"] == "technologist@mir.ru")
+
+    response = technologist_client.patch(
+        f"/api/users/{me['id']}",
+        json={
+            "full_name": me["full_name"],
+            "role": me["role"],
+            "is_active": me["is_active"],
+        },
+    )
+
+    assert response.status_code == 200
+    assert technologist_client.get("/api/auth/me").status_code == 200
+
+
+def test_role_change_revokes_employee_session(
+    technologist_client: TestClient, anon_client: TestClient
+) -> None:
+    created = technologist_client.post(
+        "/api/users", json={**NEW_USER, "email": "promo@mir.ru"}
+    ).json()
+    login = anon_client.post(
+        "/api/auth/login",
+        json={"email": "promo@mir.ru", "password": NEW_USER["password"]},
+    )
+    assert login.status_code == 200
+    assert anon_client.get("/api/auth/me").status_code == 200
+
+    patched = technologist_client.patch(
+        f"/api/users/{created['id']}", json={"role": "technologist"}
+    )
+
+    assert patched.status_code == 200
+    assert anon_client.get("/api/auth/me").status_code == 401
+
+
 def test_cannot_deactivate_self(technologist_client: TestClient) -> None:
     users = technologist_client.get("/api/users").json()
     me = next(item for item in users if item["email"] == "technologist@mir.ru")

@@ -24,6 +24,7 @@ services:
       SEED_DEMO_DATA: "false"
       ACCESS_TOKEN_TTL_MINUTES: ${ACCESS_TOKEN_TTL_MINUTES:-720}
       SHARE_TOKEN_TTL_DAYS: ${SHARE_TOKEN_TTL_DAYS:-30}
+      UTC_OFFSET_HOURS: ${UTC_OFFSET_HOURS:-5}
       # Почта для отправки КП: пока SMTP_HOST пуст, письма пишутся в outbox.
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-465}

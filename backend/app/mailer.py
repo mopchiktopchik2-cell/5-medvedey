@@ -16,6 +16,7 @@ from typing import Literal
 from app.config import settings
 from app.models import Estimate, Settings
 from app.pdf import fmt_money
+from app.timeutil import to_local
 
 EmailStatus = Literal["sent", "outbox"]
 
@@ -44,7 +45,7 @@ def build_message(
     comment: str | None = None,
 ) -> EmailMessage:
     subject = f"Коммерческое предложение № {estimate.number} — {company.company_name}"
-    created = estimate.created_at.strftime("%d.%m.%Y")
+    created = to_local(estimate.created_at).strftime("%d.%m.%Y")
 
     lines = [
         "Здравствуйте!",
@@ -95,7 +96,7 @@ def send_estimate_email(
     if not settings.smtp_host:
         outbox = Path(settings.outbox_dir)
         outbox.mkdir(parents=True, exist_ok=True)
-        stamp = datetime.now(UTC).astimezone().strftime("%Y%m%d-%H%M%S")
+        stamp = to_local(datetime.now(UTC)).strftime("%Y%m%d-%H%M%S")
         path = outbox / f"{_ascii_filename(estimate.number)}-{stamp}.eml"
         path.write_bytes(bytes(message))
         return EmailResult(

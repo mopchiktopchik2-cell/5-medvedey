@@ -2,6 +2,10 @@
 # Используется для пилота или показа заказчику с другого компьютера.
 # Останавливать: .\scripts\stop-lan.ps1
 
+param(
+    [switch]$NoBrowser
+)
+
 $ErrorActionPreference = 'Stop'
 
 $root = Split-Path -Parent $PSScriptRoot
@@ -96,4 +100,6 @@ Write-Host ''
 Write-Host 'Остановка: .\scripts\stop-lan.ps1'
 
 $openUrl = if ($ip) { "http://${ip}:8080" } else { 'http://localhost:8080' }
-Start-Process $openUrl
+if (-not $NoBrowser) {
+    Start-Process $openUrl
+}

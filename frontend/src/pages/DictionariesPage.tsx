@@ -8,7 +8,7 @@ import {
   type LogoMeta,
 } from '../api'
 import { UsersCard } from '../components/UsersCard'
-import { number } from '../format'
+import { number, parseDecimal } from '../format'
 
 type FieldDef = {
   key: string
@@ -61,6 +61,15 @@ function EntityTable({
   async function save(values: Record<string, string>, id?: number) {
     setBusy(id ? String(id) : 'new')
     setError(null)
+    const invalid = fields.find(
+      (field) =>
+        field.kind === 'number' && !Number.isFinite(parseDecimal(values[field.key] ?? '')),
+    )
+    if (invalid) {
+      setError(`Поле «${invalid.label}» — не число`)
+      setBusy(null)
+      return
+    }
     try {
       await onSave(values, id)
       if (!id) setDraft(blank)
@@ -458,18 +467,37 @@ export function DictionariesPage() {
 
   async function saveSettings() {
     setError(null)
+    const numericFields: [string, string, boolean][] = [
+      ['sewing_normohour', 'Нормо-час швеи', false],
+      ['cutting_normohour', 'Нормо-час раскройщика', false],
+      ['waste_coefficient', 'Отходы раскроя', false],
+      ['cutting_rate_parts_per_hour', 'Выработка раскройщика', true],
+      ['seam_allowance_cm', 'Припуск на шов', false],
+      ['lining_factor', 'Коэффициент подкладки', false],
+      ['hood_factor', 'Коэффициент капюшона', false],
+      ['pockets_factor', 'Коэффициент карманов', false],
+      ['daily_capacity_units', 'Мощность цеха', true],
+      ['lead_time_buffer_days', 'Буфер срока', true],
+    ]
+    for (const [key, label, integer] of numericFields) {
+      const value = parseDecimal(settingsDraft[key] ?? '')
+      if (!Number.isFinite(value) || (integer && !Number.isInteger(value))) {
+        setError(`Поле «${label}» — ${integer ? 'целое число' : 'не число'}`)
+        return
+      }
+    }
     try {
       await api.saveSettings({
-        sewing_normohour: Number(settingsDraft.sewing_normohour),
-        cutting_normohour: Number(settingsDraft.cutting_normohour),
-        waste_coefficient: Number(settingsDraft.waste_coefficient) / 100,
-        cutting_rate_parts_per_hour: Number(settingsDraft.cutting_rate_parts_per_hour),
-        seam_allowance_cm: Number(settingsDraft.seam_allowance_cm),
-        lining_factor: Number(settingsDraft.lining_factor),
-        hood_factor: Number(settingsDraft.hood_factor),
-        pockets_factor: Number(settingsDraft.pockets_factor),
-        daily_capacity_units: Number(settingsDraft.daily_capacity_units),
-        lead_time_buffer_days: Number(settingsDraft.lead_time_buffer_days),
+        sewing_normohour: parseDecimal(settingsDraft.sewing_normohour),
+        cutting_normohour: parseDecimal(settingsDraft.cutting_normohour),
+        waste_coefficient: parseDecimal(settingsDraft.waste_coefficient) / 100,
+        cutting_rate_parts_per_hour: parseDecimal(settingsDraft.cutting_rate_parts_per_hour),
+        seam_allowance_cm: parseDecimal(settingsDraft.seam_allowance_cm),
+        lining_factor: parseDecimal(settingsDraft.lining_factor),
+        hood_factor: parseDecimal(settingsDraft.hood_factor),
+        pockets_factor: parseDecimal(settingsDraft.pockets_factor),
+        daily_capacity_units: parseDecimal(settingsDraft.daily_capacity_units),
+        lead_time_buffer_days: parseDecimal(settingsDraft.lead_time_buffer_days),
         company_name: settingsDraft.company_name,
         company_requisites: settingsDraft.company_requisites,
       })
@@ -533,8 +561,8 @@ export function DictionariesPage() {
                 await api.saveFabric({
                   id,
                   name: values.name,
-                  width_cm: Number(values.width_cm),
-                  price_per_m: Number(values.price_per_m),
+                  width_cm: parseDecimal(values.width_cm),
+                  price_per_m: parseDecimal(values.price_per_m),
                   density: values.density || null,
                   is_active: values.is_active === 'true',
                 })
@@ -556,7 +584,7 @@ export function DictionariesPage() {
                   id,
                   name: values.name,
                   unit: values.unit as 'piece' | 'per_item',
-                  price: Number(values.price),
+                  price: parseDecimal(values.price),
                   is_active: values.is_active === 'true',
                 })
                 await reload()
@@ -576,7 +604,7 @@ export function DictionariesPage() {
                 await api.saveBranding({
                   id,
                   name: values.name,
-                  price: Number(values.price),
+                  price: parseDecimal(values.price),
                   is_active: values.is_active === 'true',
                 })
                 await reload()
@@ -596,7 +624,7 @@ export function DictionariesPage() {
                 await api.saveProductType({
                   id,
                   name: values.name,
-                  base_sewing_hours: Number(values.base_sewing_hours),
+                  base_sewing_hours: parseDecimal(values.base_sewing_hours),
                   is_active: values.is_active === 'true',
                 })
                 await reload()
@@ -617,7 +645,7 @@ export function DictionariesPage() {
                   id,
                   code: values.code,
                   name: values.name,
-                  factor: Number(values.factor),
+                  factor: parseDecimal(values.factor),
                 })
                 await reload()
               }}
