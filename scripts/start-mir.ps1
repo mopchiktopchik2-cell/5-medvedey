@@ -61,38 +61,58 @@ try {
         }
 
         Write-Host 'Устанавливаю Docker Desktop через winget (может занять несколько минут)…'
-        $wingetStartInfo = New-Object System.Diagnostics.ProcessStartInfo
-        $wingetStartInfo.FileName = $wingetExe
-        $wingetStartInfo.Arguments = '-install --id Docker.DockerDesktop --source winget --accept-package-agreements --accept-source-agreements'
+        $wingetArgs = 'install --id Docker.DockerDesktop -e --source winget --accept-package-agreements --accept-source-agreements'
         $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
         $principal = New-Object Security.Principal.WindowsPrincipal($identity)
-        $wingetStartInfo.UseShellExecute = $true
-        if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-            $wingetStartInfo.Verb = 'runAs'
+        $isAdmin = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+
+        if ($isAdmin) {
+            $wingetProcess = Start-Process -FilePath $wingetExe -ArgumentList $wingetArgs -Wait -PassThru -NoNewWindow
+        } else {
+            try {
+                $wingetProcess = Start-Process -FilePath $wingetExe -ArgumentList $wingetArgs -Wait -PassThru -Verb RunAs
+            } catch {
+                Write-Host "Не удалось запустить установку Docker Desktop (нужны права администратора): $($_.Exception.Message)"
+                Write-Host 'Установите Docker Desktop вручную: https://www.docker.com/products/docker-desktop/'
+                exit 1
+            }
         }
-        $wingetProcess = [System.Diagnostics.Process]::Start($wingetStartInfo)
-        $wingetProcess.WaitForExit()
         if ($wingetProcess.ExitCode -ne 0) {
             Write-Host "winget завершился с кодом $($wingetProcess.ExitCode). Установите Docker Desktop вручную: https://www.docker.com/products/docker-desktop/"
             exit 1
         }
-        Start-Sleep -Seconds 30
+        # После установки Docker Desktop/winget может занять время; ищем docker.exe и запускаем приложение.
+        $desktop = Find-DockerDesktop
+        if ($desktop -and -not (Test-DockerEngine)) {
+            Start-Process $desktop | Out-Null
+        }
 
-        # Docker Desktop устанавливается в Program Files — подгружаем его в PATH текущего процесса.
-        $dockerExe = @(
-            (Get-Command docker -ErrorAction SilentlyContinue).Source,
-            'C:\Program Files\Docker\Docker\resources\bin\docker.exe',
-            'C:\Program Files\Docker\Docker\bin\docker.exe',
-            'C:\Program Files\Docker\docker.exe'
-        ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+        $dockerExe = $null
+        for ($i = 0; $i -lt 60; $i++) {
+            $machinePath = [Environment]::GetEnvironmentVariable('Path', 'Machine')
+            $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+            $env:Path = "$machinePath;$userPath;$env:Path"
+
+            $dockerExe = @(
+                (Get-Command docker -ErrorAction SilentlyContinue).Source,
+                'C:\Program Files\Docker\Docker\resources\bin\docker.exe',
+                'C:\Program Files\Docker\Docker\bin\docker.exe',
+                'C:\Program Files\Docker\docker.exe'
+            ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+
+            if ($dockerExe) { break }
+            Start-Sleep -Seconds 5
+        }
+
         if (-not $dockerExe) {
-            Write-Host 'Docker Desktop установился, но docker.exe не найден в ожидаемых местах.'
-            Write-Host 'Откройте Docker Desktop и запустите этот ярлык снова.'
+            Write-Host 'Docker Desktop установлен, но docker.exe не найден.'
+            Write-Host 'Перезагрузите компьютер (если требуется установщиком), откройте Docker Desktop и запустите этот ярлык снова.'
             exit 1
         }
+
         $dockerBinDir = Split-Path -Parent $dockerExe
-        if ($dockerBinDir) {
-            [Environment]::SetEnvironmentVariable('Path', $env:Path + ';' + $dockerBinDir, 'Process')
+        if ($dockerBinDir -and ($env:Path -notlike "*$dockerBinDir*")) {
+            $env:Path = "$env:Path;$dockerBinDir"
         }
         Write-Host 'Docker Desktop установлен.'
     }
