@@ -172,6 +172,7 @@ class Estimate(Base):
 
     notes: Mapped[str | None] = mapped_column(Text, default=None)
     share_token: Mapped[str | None] = mapped_column(String(64), unique=True, default=None)
+    share_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     @property

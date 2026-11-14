@@ -7,6 +7,7 @@ import { DictionariesPage } from './pages/DictionariesPage'
 import { EstimatePage } from './pages/EstimatePage'
 import { HistoryPage } from './pages/HistoryPage'
 import { LoginPage } from './pages/LoginPage'
+import { ProfilePage } from './pages/ProfilePage'
 import { SharePage } from './pages/SharePage'
 
 function RequireAuth() {
@@ -43,6 +44,7 @@ function App() {
             <Route path="/" element={<CalculatorPage />} />
             <Route path="/estimates" element={<HistoryPage />} />
             <Route path="/estimates/:id" element={<EstimatePage />} />
+            <Route path="/profile" element={<ProfilePage />} />
             <Route
               path="/dictionaries"
               element={

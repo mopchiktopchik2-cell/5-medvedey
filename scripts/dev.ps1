@@ -8,7 +8,7 @@ $frontend = Join-Path $root 'frontend'
 Start-Process powershell -ArgumentList @(
     '-NoExit',
     '-Command',
-    "cd '$backend'; .\.venv\Scripts\Activate.ps1; uvicorn app.main:app --reload --port 8000"
+    "cd '$backend'; .\.venv\Scripts\Activate.ps1; alembic upgrade head; uvicorn app.main:app --reload --port 8000"
 )
 
 Start-Process powershell -ArgumentList @(

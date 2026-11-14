@@ -10,6 +10,7 @@ export function EstimatePage() {
   const [estimate, setEstimate] = useState<Estimate | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [shareUrl, setShareUrl] = useState<string | null>(null)
+  const [shareExpires, setShareExpires] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [email, setEmail] = useState('')
   const [emailComment, setEmailComment] = useState('')
@@ -30,6 +31,10 @@ export function EstimatePage() {
       .then((data) => {
         setEstimate(data)
         setEmail(data.contractor_email ?? '')
+        if (data.share_token) {
+          setShareUrl(`${window.location.origin}/share/${data.share_token}`)
+          setShareExpires(data.share_expires_at)
+        }
       })
       .catch((err: Error) => setError(err.message))
   }, [id])
@@ -40,9 +45,23 @@ export function EstimatePage() {
       const share = await api.shareEstimate(estimate.id)
       const url = `${window.location.origin}/share/${share.token}`
       setShareUrl(url)
+      setShareExpires(share.expires_at)
       await navigator.clipboard.writeText(url).catch(() => undefined)
       setCopied(true)
       setTimeout(() => setCopied(false), 2500)
+    } catch (err) {
+      setError((err as Error).message)
+    }
+  }
+
+  async function handleRevokeShare() {
+    if (!estimate) return
+    if (!window.confirm('Отозвать ссылку? Подрядчик больше не сможет её открыть.')) return
+    try {
+      await api.revokeShare(estimate.id)
+      setShareUrl(null)
+      setShareExpires(null)
+      setCopied(false)
     } catch (err) {
       setError((err as Error).message)
     }
@@ -178,9 +197,22 @@ export function EstimatePage() {
       </header>
 
       {shareUrl && (
-        <p className="notice notice--ok">
-          Ссылка: <code>{shareUrl}</code>
-        </p>
+        <div className="notice notice--ok">
+          <p>
+            Ссылка: <code>{shareUrl}</code>
+          </p>
+          <p className="hint">
+            {shareExpires
+              ? `Действует до ${dateTime(shareExpires)}. `
+              : 'Срок действия не ограничен. '}
+            Ссылку можно отозвать в любой момент.
+          </p>
+          <div className="actions actions--tight">
+            <button type="button" className="button button--ghost" onClick={handleRevokeShare}>
+              Отозвать ссылку
+            </button>
+          </div>
+        </div>
       )}
 
       <section className="card">

@@ -1,0 +1,6 @@
+# entrypoint.sh должен оставаться с LF: CRLF ломает shebang в Linux-контейнере.
+*.sh text eol=lf
+
+# Dockerfile — тоже LF, чтобы сборка не зависела от настроек git.
+Dockerfile text eol=lf
+*.Dockerfile text eol=lf

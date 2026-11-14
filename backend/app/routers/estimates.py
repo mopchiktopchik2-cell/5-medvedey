@@ -1,7 +1,7 @@
 import csv
 import io
 import secrets
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Annotated
 from urllib.parse import quote
 
@@ -29,6 +29,8 @@ from app.schemas import (
     EstimatePreview,
     EstimateRead,
     EstimateRequest,
+    PublicEstimateRead,
+    ShareResult,
 )
 from app.security import CurrentUser
 from app.services import CalculationError, calculate, get_settings_row
@@ -37,6 +39,19 @@ router = APIRouter(prefix="/estimates", tags=["estimates"])
 public_router = APIRouter(prefix="/public", tags=["public"])
 
 SessionDep = Annotated[Session, Depends(get_session)]
+
+
+def _as_utc(value: datetime) -> datetime:
+    """SQLite возвращает naive datetime — трактуем его как UTC."""
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+
+
+def _share_is_alive(estimate: Estimate) -> bool:
+    if not estimate.share_token:
+        return False
+    if estimate.share_expires_at is None:
+        return True
+    return _as_utc(estimate.share_expires_at) > datetime.now(UTC)
 
 
 def _detail_query():
@@ -352,13 +367,33 @@ def download_pdf(estimate_id: int, session: SessionDep, user: CurrentUser) -> Re
     return _pdf_response(estimate, get_settings_row(session))
 
 
-@router.post("/{estimate_id}/share")
-def share_estimate(estimate_id: int, session: SessionDep, user: CurrentUser) -> dict[str, str]:
+@router.post("/{estimate_id}/share", response_model=ShareResult)
+def share_estimate(estimate_id: int, session: SessionDep, user: CurrentUser) -> ShareResult:
+    """Выдаёт публичную ссылку. Действующая ссылка переиспользуется."""
     estimate = _visible_estimate(session, user, estimate_id)
-    if not estimate.share_token:
+
+    if not _share_is_alive(estimate):
         estimate.share_token = secrets.token_urlsafe(16)
+        estimate.share_expires_at = datetime.now(UTC) + timedelta(
+            days=max(1, settings.share_token_ttl_days)
+        )
         session.commit()
-    return {"token": estimate.share_token, "path": f"/share/{estimate.share_token}"}
+        session.refresh(estimate)
+
+    return ShareResult(
+        token=estimate.share_token or "",
+        path=f"/share/{estimate.share_token}",
+        expires_at=estimate.share_expires_at,
+    )
+
+
+@router.delete("/{estimate_id}/share", status_code=status.HTTP_204_NO_CONTENT)
+def revoke_share(estimate_id: int, session: SessionDep, user: CurrentUser) -> None:
+    """Отзывает публичную ссылку: старый токен перестаёт работать."""
+    estimate = _visible_estimate(session, user, estimate_id)
+    estimate.share_token = None
+    estimate.share_expires_at = None
+    session.commit()
 
 
 @router.post("/{estimate_id}/send-email", response_model=EmailSendResult)
@@ -384,17 +419,17 @@ def send_estimate_by_email(
     return EmailSendResult(status=result.status, detail=result.detail, to=payload.to)
 
 
-@public_router.get("/estimates/{token}", response_model=EstimateRead)
+@public_router.get("/estimates/{token}", response_model=PublicEstimateRead)
 def get_shared_estimate(token: str, session: SessionDep) -> Estimate:
     estimate = session.scalar(_detail_query().where(Estimate.share_token == token))
-    if estimate is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Ссылка недействительна")
+    if estimate is None or not _share_is_alive(estimate):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Ссылка недействительна или истекла")
     return estimate
 
 
 @public_router.get("/estimates/{token}/pdf")
 def download_shared_pdf(token: str, session: SessionDep) -> Response:
     estimate = session.scalar(_detail_query().where(Estimate.share_token == token))
-    if estimate is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Ссылка недействительна")
+    if estimate is None or not _share_is_alive(estimate):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Ссылка недействительна или истекла")
     return _pdf_response(estimate, get_settings_row(session))

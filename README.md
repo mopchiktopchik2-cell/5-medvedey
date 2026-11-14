@@ -15,7 +15,9 @@
 - **Справочники технолога** — ткани, фурнитура, брендирование, изделия, коэффициенты, нормо-часы.
 - **Профили подрядчиков** — название, email для КП и телефон; подрядчик сохраняется в истории расчётов, email подставляется в отправку.
 - **Роли** — менеджер видит только свои расчёты, технолог — все и правит справочники.
-- **Ссылка для подрядчика** — публичный просмотр сметы и скачивание PDF без входа.
+- **Сотрудники и пароли** — технолог заводит сотрудников, отключает уволенных и сбрасывает забытые пароли; каждый сотрудник меняет свой пароль сам.
+- **Ссылка для подрядчика** — публичный просмотр сметы и скачивание PDF без входа. Ссылка живёт 30 дней (настраивается) и в любой момент отзывается; во внешнем ответе нет email и ФИО сотрудника, нормо-часов и цены погонного метра.
+- **Защита от перебора пароля** — после нескольких неудачных попыток вход с этого адреса временно блокируется.
 - **Отправка КП на email** — PDF вложением через SMTP; без SMTP письмо сохраняется в `outbox` как `.eml`.
 - **Повтор расчёта** — сохранённая смета открывается в калькуляторе со всеми параметрами.
 - **Черновик расчёта** — параметры автоматически сохраняются в браузере и переживают обрыв связи.
@@ -24,10 +26,18 @@
 
 | Роль | Права | Демо-логин |
 | --- | --- | --- |
-| Менеджер | создаёт расчёты, видит только свои, скачивает PDF, делится ссылкой | `manager@mir.ru` / `manager123` |
-| Технолог | всё выше + все расчёты + справочники и настройки | `technologist@mir.ru` / `technolog123` |
+| Менеджер | создаёт расчёты, видит только свои, скачивает PDF, делится ссылкой, меняет свой пароль | `manager@mir.ru` / `manager123` |
+| Технолог | всё выше + все расчёты + справочники и настройки + управление сотрудниками | `technologist@mir.ru` / `technolog123` |
 
-Демо-пользователи создаются автоматически при пустой базе (`SEED_DEMO_DATA=true`).
+Демо-пользователи создаются только при `SEED_DEMO_DATA=true` и пустой базе. В production демо-данные выключены: первого технолога создаёт администратор командой
+
+```powershell
+python -m app.cli create-user --email boss@example.ru --name "Иванов И. И."
+```
+
+Пароль команда спросит интерактивно (или примите `--password`). Сбросить забытый пароль без входа в систему: `python -m app.cli reset-password --email manager@mir.ru`.
+
+Сотрудники и пароли: технолог открывает «Справочники → Пользователи», заводит сотрудника, меняет роль, отключает уволенного и задаёт новый пароль. Отключить или понизить собственную учётную запись нельзя, как и оставить систему без активного технолога. Свой пароль сотрудник меняет по ссылке «Сменить пароль» в шапке; после смены нужно войти заново.
 
 ## Формулы расчёта
 
@@ -64,9 +74,9 @@
 
 ## Стек
 
-- **Backend:** Python 3.11, FastAPI, SQLAlchemy 2.0, SQLite (по умолчанию) / PostgreSQL, JWT в httpOnly cookie, argon2-хеши, fpdf2 для PDF.
-- **Frontend:** React 19, TypeScript, Vite, React Router, oxlint.
-- **Инфраструктура:** Docker Compose, GitHub Actions (ruff, pytest, oxlint, сборка).
+- **Backend:** Python 3.11, FastAPI, SQLAlchemy 2.0, SQLite (по умолчанию) / PostgreSQL, JWT в httpOnly cookie, argon2-хеши, fpdf2 для PDF, Alembic для миграций.
+- **Frontend:** React 19, TypeScript, Vite, React Router, oxlint, vitest.
+- **Инфраструктура:** Docker Compose, GitHub Actions (ruff, pytest, проверка миграций, oxlint, vitest, сборка).
 
 ## Интерфейс
 
@@ -84,23 +94,37 @@ backend/
     models.py          SQLAlchemy-модели
     schemas.py         pydantic-контракты API
     security.py        JWT, роли, хеши
+    ratelimit.py       блокировка входа после неудачных попыток
     pdf.py             генерация КП (PT Sans)
     branding.py        логотип цеха: валидация, нормализация, хранение
     mailer.py          отправка КП по SMTP с фолбэком в outbox
     seed.py            справочники и демо-пользователи
-    routers/           auth, dictionaries, estimates, health
+    cli.py             создание сотрудника и сброс пароля без входа
+    routers/           auth, users, dictionaries, estimates, branding, health
     assets/fonts/      PT Sans Regular/Bold + лицензия OFL
-  tests/               44 теста: формулы, API, права, PDF, email, CSV, логотип, подрядчики
+  migrations/          Alembic: baseline-миграция и окружение
+  alembic.ini
+  entrypoint.sh        миграции + запуск uvicorn в контейнере
+  tests/               60 тестов: формулы, API, права, PDF, email, CSV, логотип,
+                       подрядчики, сотрудники, публичные ссылки, rate-limit
 frontend/
   public/fonts/        self-hosted шрифты интерфейса (OFL / Apache 2.0)
   src/
-    pages/             вход, калькулятор, история, КП, справочники, публичная смета
+    pages/             вход, калькулятор, история, КП, справочники, профиль, публичная смета
+    components/        шапка, карточка сотрудников
     index.css          тема интерфейса и адаптив
     fonts.css          @font-face для локальных шрифтов
     api.ts             типизированный клиент
     auth.tsx           контекст авторизации
+    format.ts          форматирование чисел, денег и дат
+    format.test.ts     unit-тесты форматтеров (vitest)
+scripts/
+  setup.ps1            установка зависимостей и генерация SECRET_KEY
+  dev.ps1              запуск бэкенда и фронтенда
+  check_migrations.py  проверка сценариев миграций
 docs/
   manager-guide.md     инструкция менеджера
+  technologist-guide.md инструкция технолога
   requirements-checklist.md  матрица соответствия ТЗ
   idea.md              описание кейса
 ```
@@ -117,6 +141,8 @@ cd 5-medvedey
 - Интерфейс: http://localhost:5173
 - API и Swagger: http://localhost:8000/docs
 
+`setup.ps1` создаёт `.env` из шаблона и генерирует в нём случайный `SECRET_KEY`. Без `.env` в development работает небезопасный дефолтный ключ, а в production приложение намеренно не запустится.
+
 Вручную:
 
 ```powershell
@@ -124,6 +150,7 @@ cd backend
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements-dev.txt
+alembic upgrade head
 uvicorn app.main:app --reload
 
 cd frontend
@@ -131,9 +158,15 @@ npm install
 npm run dev
 ```
 
+Схема базы обновляется миграциями Alembic. Приложение по-прежнему вызывает `create_all` при старте — это страховка для чистой локальной базы, миграции её не ломают. Для рабочих контуров миграции применяются явно: `alembic upgrade head`.
+
 ## Docker
 
 ```powershell
+# один раз: .env со случайным SECRET_KEY
+Copy-Item .env.example .env
+python -c "import secrets; print('SECRET_KEY=' + secrets.token_urlsafe(48))" | Add-Content .env
+
 # SQLite
 docker compose up --build
 
@@ -141,17 +174,32 @@ docker compose up --build
 docker compose -f docker-compose.yml -f docker-compose.postgres.yml up --build
 ```
 
-Интерфейс — http://localhost:5173, API — http://localhost:8000. Вариант с PostgreSQL проверен: схема, демо-данные, расчёт, профили подрядчиков и PDF работают без изменений в коде.
+Интерфейс — http://localhost:5173, API — http://localhost:8000.
+
+Compose намеренно безопасен по умолчанию: `APP_ENV=production`, демо-данные не создаются, без `SECRET_KEY` контейнер не стартует. Значения `APP_ENV` и `SEED_DEMO_DATA` в compose зафиксированы, чтобы локальный `.env` не включал демо-режим на сервере. После первого запуска создайте технолога:
+
+```powershell
+docker compose exec backend python -m app.cli create-user --email boss@example.ru --name "Иванов И. И."
+```
+
+Если нужен демо-стенд с учётками `manager@mir.ru` / `technologist@mir.ru`, временно поставьте в `docker-compose.yml` `SEED_DEMO_DATA: "true"` — приложение предупредит в логах, что демо-пароли доступны всем.
+
+Контейнер бэкенда при старте выполняет `alembic upgrade head` (см. `backend/entrypoint.sh`), поэтому схема обновляется сама. Вариант с PostgreSQL проверен: схема, демо-данные, расчёт, профили подрядчиков и PDF работают без изменений в коде.
 
 ## Развёртывание на хостинге в РФ
 
 Сервис хранит базу, PDF и загруженный логотип только на вашем сервере и не обращается к внешним облачным API. Подойдёт VPS в российском дата-центре: Timeweb Cloud, Selectel, Yandex Cloud или аналогичный.
 
 1. Создайте сервер с Docker и Docker Compose, направьте домен на его IP.
-2. Задайте переменные окружения: `APP_ENV=production`, стойкий `SECRET_KEY`, `POSTGRES_PASSWORD`, `CORS_ORIGINS=https://ваш-домен`, `SEED_DEMO_DATA=false`.
+2. Задайте переменные окружения: `APP_ENV=production`, стойкий `SECRET_KEY` (без него приложение не стартует), `POSTGRES_PASSWORD`, `CORS_ORIGINS=https://ваш-домен`, `SEED_DEMO_DATA=false`.
 3. Запустите PostgreSQL-вариант: `docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --build`.
-4. Поставьте перед контейнерами reverse proxy с TLS (nginx или Caddy) и проксируйте `https://ваш-домен` на `frontend:80`.
-5. Настройте резервное копирование томов `backend-data` (SQLite, логотип, outbox) и `pg-data` (PostgreSQL) и мониторинг доступности `/api/health`.
+4. Создайте первого технолога: `docker compose exec backend python -m app.cli create-user --email boss@example.ru --name "Иванов И. И."`.
+5. Поставьте перед контейнерами reverse proxy с TLS (nginx или Caddy) и проксируйте `https://ваш-домен` на `frontend:80`.
+6. Настройте резервное копирование томов `backend-data` (SQLite, логотип, outbox) и `pg-data` (PostgreSQL) и мониторинг доступности `/api/health`.
+
+Схема базы обновляется миграциями Alembic при старте контейнера. Откат baseline-миграции на базе с данными запрещён намеренно — чтобы случайно не удалить справочники и историю расчётов.
+
+Если TLS временно нет и сервис работает по HTTP, secure-cookie сломают вход. На это время задайте `COOKIE_SECURE=false` и как можно скорее включите HTTPS.
 
 SMTP можно указать любого российского провайдера (Яндекс 360, Mail.ru для бизнеса, Timeweb) — достаточно заполнить переменные `SMTP_*`.
 
@@ -161,13 +209,17 @@ SMTP можно указать любого российского провай�
 
 | Переменная | По умолчанию | Назначение |
 | --- | --- | --- |
-| `APP_ENV` | `development` | `production` включает secure-cookie |
+| `APP_ENV` | `development` | `production` запрещает слабый `SECRET_KEY` и включает secure-cookie |
 | `DATABASE_URL` | `sqlite:///./data/app.db` | строка подключения SQLAlchemy |
 | `POSTGRES_PASSWORD` | `mir` | пароль PostgreSQL для compose-оверрайда |
 | `CORS_ORIGINS` | `http://localhost:5173` | разрешённые источники через запятую |
-| `SECRET_KEY` | dev-значение | подпись JWT, заменить в production |
+| `SECRET_KEY` | dev-значение | подпись JWT; в production обязателен случайный ключ длиной от 32 символов |
 | `ACCESS_TOKEN_TTL_MINUTES` | `720` | срок жизни сессии |
-| `SEED_DEMO_DATA` | `true` | заполнение справочников при пустой базе |
+| `COOKIE_SECURE` | авто | `true`/`false` жёстко задаёт secure-cookie; пусто — включать только в production |
+| `SEED_DEMO_DATA` | `true` (в compose — `false`) | заполнение справочников и демо-учёток при пустой базе |
+| `SHARE_TOKEN_TTL_DAYS` | `30` | срок жизни публичной ссылки на КП |
+| `LOGIN_MAX_ATTEMPTS` | `5` | неудачных попыток входа до блокировки |
+| `LOGIN_LOCKOUT_MINUTES` | `15` | на сколько минут блокируется вход |
 | `SMTP_HOST` | пусто | SMTP-сервер; пока пусто, письма пишутся в `data/outbox` |
 | `SMTP_PORT` | `465` | порт SMTP |
 | `SMTP_USER` / `SMTP_PASSWORD` | пусто | логин и пароль SMTP |
@@ -186,6 +238,10 @@ SMTP можно указать любого российского провай�
 | POST | `/api/auth/login` | все |
 | POST | `/api/auth/logout` | авторизованные |
 | GET | `/api/auth/me` | авторизованные |
+| POST | `/api/auth/change-password` | авторизованные (свой пароль) |
+| GET | `/api/users` | технолог |
+| POST | `/api/users` | технолог |
+| PATCH | `/api/users/{id}` | технолог (роль, ФИО, активность, пароль) |
 | GET | `/api/dictionaries` | авторизованные |
 | POST/PATCH | `/api/dictionaries/{fabrics,hardware,branding,product-types,complexity}` | технолог |
 | POST/PATCH | `/api/contractors` | технолог |
@@ -199,7 +255,8 @@ SMTP можно указать любого российского провай�
 | GET | `/api/estimates/{id}` | владелец или технолог |
 | DELETE | `/api/estimates/{id}` | владелец или технолог |
 | GET | `/api/estimates/{id}/pdf` | владелец или технолог |
-| POST | `/api/estimates/{id}/share` | владелец или технолог |
+| POST | `/api/estimates/{id}/share` | владелец или технолог (выдаёт ссылку со сроком) |
+| DELETE | `/api/estimates/{id}/share` | владелец или технолог (отзывает ссылку) |
 | POST | `/api/estimates/{id}/send-email` | владелец или технолог |
 | GET | `/api/public/estimates/{token}` | без авторизации |
 | GET | `/api/public/estimates/{token}/pdf` | без авторизации |
@@ -213,21 +270,26 @@ cd backend
 .\.venv\Scripts\ruff.exe check .
 .\.venv\Scripts\ruff.exe format --check .
 .\.venv\Scripts\pytest.exe
+.\.venv\Scripts\python.exe ..\scripts\check_migrations.py
 
 cd ..\frontend
 npm run lint
+npm test
 npm run build
 ```
+
+`check_migrations.py` проверяет четыре сценария: чистая база, повторный `upgrade`, база от старого `create_all` и база без новой колонки `share_expires_at`.
 
 Те же проверки выполняются в GitHub Actions (`.github/workflows/ci.yml`).
 
 ## Ограничения и планы
 
 - Раскладка кроя — эвристика «полками» с поворотом деталей, а не полноценный оптимизатор вложенности. Для укрупнённого экспресс-расчёта этого достаточно; точный расклад даёт САПР.
-- Если SMTP не настроен, письмо с КП не отправляется, а сохраняется в `data/outbox/*.eml` — файл можно открыть почтовым клиентом. Это осознанный демо-фолбэк, а не ошибка.
-- Схема БД создаётся автоматически (`create_all`); для продакшена стоит добавить Alembic.
+- Если SMTP не настроен, письмо с КП не отправляется, а сохраняется в `data/outbox/*.eml` — файл можно открыть почтовым клиентом. Это осознанный демо-фолбэк, а не ошибка. Реальная отправка через SMTP требует рабочих учётных данных и в CI не проверяется.
+- Счётчик неудачных входов хранится в памяти процесса: при нескольких воркерах uvicorn лимит действует на каждый процесс отдельно. Для одного контейнера этого достаточно; при масштабировании лимит лучше вынести на reverse proxy или в Redis.
+- После смены пароля закрывается только текущая сессия: выданные ранее JWT доживают до истечения срока (12 часов). Для мгновенного отзыва всех сессий нужна версия токена в базе.
 - SQLite оставлен вариантом по умолчанию для локальной демонстрации. Для рабочего контура используйте PostgreSQL-оверрайд: он проверен и описан выше.
-- Автотесты фронтенда отсутствуют: сквозной сценарий проверялся вручную через headless-браузер.
+- Автотесты фронтенда покрывают форматтеры (`format.test.ts`), а не сквозные сценарии в браузере. Полный сценарий «ввод → расчёт → КП» проверялся вручную.
 
 ## Лицензия
 

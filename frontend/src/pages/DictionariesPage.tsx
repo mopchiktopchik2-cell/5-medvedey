@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api, logoUrl, type Dictionaries, type LogoMeta } from '../api'
+import { UsersCard } from '../components/UsersCard'
 import { number } from '../format'
 
 type FieldDef = {
@@ -293,7 +294,14 @@ function LogoCard() {
 
 export function DictionariesPage() {
   const [tab, setTab] = useState<
-    'fabrics' | 'hardware' | 'branding' | 'products' | 'complexity' | 'contractors' | 'settings'
+    | 'fabrics'
+    | 'hardware'
+    | 'branding'
+    | 'products'
+    | 'complexity'
+    | 'contractors'
+    | 'users'
+    | 'settings'
   >('fabrics')
   const [data, setData] = useState<Dictionaries | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -426,6 +434,7 @@ export function DictionariesPage() {
     { key: 'products', label: 'Изделия' },
     { key: 'complexity', label: 'Сложность' },
     { key: 'contractors', label: 'Подрядчики' },
+    { key: 'users', label: 'Пользователи' },
     { key: 'settings', label: 'Настройки' },
   ] as const
 
@@ -575,6 +584,8 @@ export function DictionariesPage() {
               />
             </div>
           )}
+
+          {tab === 'users' && <UsersCard />}
 
           {tab === 'settings' && (
             <div className="stack">

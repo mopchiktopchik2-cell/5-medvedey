@@ -2,11 +2,30 @@ services:
   backend:
     build: ./backend
     environment:
+      # Значения зафиксированы намеренно: локальный .env не должен
+      # включать демо-учётки или отключать защиту на сервере.
       APP_ENV: production
       DATABASE_URL: sqlite:////app/data/app.db
-      CORS_ORIGINS: http://localhost:5173,http://localhost:8080
-      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
-      SEED_DEMO_DATA: "true"
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:8080}
+      # Без явного ключа контейнер не запустится: см. .env.example.
+      SECRET_KEY: ${SECRET_KEY:?Задайте SECRET_KEY в .env (см. .env.example)}
+      # Пусто — secure-cookie включены, т.к. APP_ENV=production.
+      # COOKIE_SECURE=false нужен, если сервис временно работает по HTTP без TLS.
+      COOKIE_SECURE: ${COOKIE_SECURE:-}
+      # Демо-учётки в контейнере не создаются. Первого технолога заведите
+      # командой: docker compose exec backend python -m app.cli create-user ...
+      SEED_DEMO_DATA: "false"
+      ACCESS_TOKEN_TTL_MINUTES: ${ACCESS_TOKEN_TTL_MINUTES:-720}
+      SHARE_TOKEN_TTL_DAYS: ${SHARE_TOKEN_TTL_DAYS:-30}
+      # Почта для отправки КП: пока SMTP_HOST пуст, письма пишутся в outbox.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_USE_SSL: ${SMTP_USE_SSL:-true}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-false}
+      SMTP_TIMEOUT_SECONDS: ${SMTP_TIMEOUT_SECONDS:-15}
     volumes:
       - backend-data:/app/data
     ports:

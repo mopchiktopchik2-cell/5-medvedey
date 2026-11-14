@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { api, logoUrl, sharedPdfUrl, type Estimate } from '../api'
+import { api, logoUrl, sharedPdfUrl, type PublicEstimate } from '../api'
 import { dateOnly, money, number, percent } from '../format'
 
 function ShareTop() {
@@ -20,7 +20,7 @@ function ShareTop() {
 
 export function SharePage() {
   const { token = '' } = useParams()
-  const [estimate, setEstimate] = useState<Estimate | null>(null)
+  const [estimate, setEstimate] = useState<PublicEstimate | null>(null)
   const [logo, setLogo] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 

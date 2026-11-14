@@ -41,6 +41,11 @@ export type User = {
   role: Role
 }
 
+export type AdminUser = User & {
+  is_active: boolean
+  created_at: string
+}
+
 export type Fabric = {
   id: number
   name: string
@@ -244,6 +249,35 @@ export type Estimate = {
   lead_time_days: number
   notes: string | null
   share_token: string | null
+  share_expires_at: string | null
+  parts: { name: string; length_cm: number; width_cm: number; count_per_unit: number }[]
+  hardware_items: { hardware_id: number | null; name: string; unit: string; price: number; qty_per_unit: number; total: number }[]
+  branding_items: { branding_id: number | null; name: string; price: number; positions: number; total: number }[]
+}
+
+/** Смета по публичной ссылке: без внутренних данных (автор, нормо-часы, цены). */
+export type PublicEstimate = {
+  id: number
+  number: string
+  created_at: string
+  contractor_name: string | null
+  product_type_name: string
+  complexity_name: string
+  quantity: number
+  fabric_name: string
+  fabric_width_cm: number
+  waste_coefficient: number
+  material_length_m: number
+  material_cost: number
+  cutting_hours: number
+  cutting_cost: number
+  sewing_hours: number
+  sewing_cost: number
+  hardware_cost: number
+  branding_cost: number
+  total_cost: number
+  unit_cost: number
+  lead_time_days: number
   parts: { name: string; length_cm: number; width_cm: number; count_per_unit: number }[]
   hardware_items: { hardware_id: number | null; name: string; unit: string; price: number; qty_per_unit: number; total: number }[]
   branding_items: { branding_id: number | null; name: string; price: number; positions: number; total: number }[]
@@ -256,6 +290,16 @@ export const api = {
     request<User>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   logout: () => request<void>('/auth/logout', { method: 'POST' }),
   me: () => request<User>('/auth/me'),
+  changePassword: (payload: { current_password: string; new_password: string }) =>
+    request<void>('/auth/change-password', { method: 'POST', body: JSON.stringify(payload) }),
+
+  listUsers: () => request<AdminUser[]>('/users'),
+  createUser: (payload: { email: string; full_name: string; role: Role; password: string }) =>
+    request<AdminUser>('/users', { method: 'POST', body: JSON.stringify(payload) }),
+  updateUser: (
+    id: number,
+    payload: { full_name?: string; role?: Role; is_active?: boolean; password?: string },
+  ) => request<AdminUser>(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }),
 
   dictionaries: () => request<Dictionaries>('/dictionaries'),
 
@@ -279,13 +323,18 @@ export const api = {
   getEstimate: (id: number) => request<Estimate>(`/estimates/${id}`),
   deleteEstimate: (id: number) => request<void>(`/estimates/${id}`, { method: 'DELETE' }),
   shareEstimate: (id: number) =>
-    request<{ token: string; path: string }>(`/estimates/${id}/share`, { method: 'POST' }),
+    request<{ token: string; path: string; expires_at: string | null }>(
+      `/estimates/${id}/share`,
+      { method: 'POST' },
+    ),
+  revokeShare: (id: number) =>
+    request<void>(`/estimates/${id}/share`, { method: 'DELETE' }),
   sendEmail: (id: number, payload: { to: string; message?: string | null }) =>
     request<{ status: 'sent' | 'outbox'; detail: string; to: string }>(
       `/estimates/${id}/send-email`,
       { method: 'POST', body: JSON.stringify(payload) },
     ),
-  getSharedEstimate: (token: string) => request<Estimate>(`/public/estimates/${token}`),
+  getSharedEstimate: (token: string) => request<PublicEstimate>(`/public/estimates/${token}`),
 
   getLogoMeta: () => request<LogoMeta>('/public/logo/meta'),
   uploadLogo: async (file: File) => {

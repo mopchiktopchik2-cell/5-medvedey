@@ -5,12 +5,21 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
+from app import ratelimit
 from app.db import Base, get_session
 from app.main import app
 from app.seed import seed
 
 MANAGER = {"email": "manager@mir.ru", "password": "manager123"}
 TECHNOLOGIST = {"email": "technologist@mir.ru", "password": "technolog123"}
+
+
+@pytest.fixture(autouse=True)
+def reset_login_limits() -> Iterator[None]:
+    """Счётчик неудачных входов — состояние процесса, изолируем тесты."""
+    ratelimit.reset_all()
+    yield
+    ratelimit.reset_all()
 
 
 @pytest.fixture()

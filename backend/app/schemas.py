@@ -31,6 +31,32 @@ class UserRead(BaseModel):
     role: str
 
 
+class UserAdminRead(UserRead):
+    """Профиль сотрудника для администрирования (только технолог)."""
+
+    is_active: bool
+    created_at: datetime
+
+
+class UserCreate(BaseModel):
+    email: EmailStr
+    full_name: str = Field(min_length=1, max_length=120)
+    role: Literal["manager", "technologist"] = "manager"
+    password: str = Field(min_length=8, max_length=128)
+
+
+class UserUpdate(BaseModel):
+    full_name: str | None = Field(default=None, min_length=1, max_length=120)
+    role: Literal["manager", "technologist"] | None = None
+    is_active: bool | None = None
+    password: str | None = Field(default=None, min_length=8, max_length=128)
+
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=8, max_length=128)
+
+
 # --- справочники ---
 
 
@@ -335,6 +361,7 @@ class EstimateRead(BaseModel):
     lead_time_days: int
     notes: str | None
     share_token: str | None
+    share_expires_at: datetime | None = None
     parts: list[EstimatePartRead]
     hardware_items: list[HardwareLineRead]
     branding_items: list[BrandingLineRead]
@@ -373,6 +400,47 @@ class EmailSendResult(BaseModel):
 class LogoMeta(BaseModel):
     has_logo: bool
     updated_at: datetime | None = None
+
+
+class ShareResult(BaseModel):
+    token: str
+    path: str
+    expires_at: datetime | None = None
+
+
+class PublicEstimateRead(BaseModel):
+    """Смета для подрядчика по публичной ссылке.
+
+    Намеренно без внутренних данных: email и ФИО сотрудника, нормо-часы,
+    цена погонного метра и служебные токены наружу не отдаются.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    number: str
+    created_at: datetime
+    contractor_name: str | None
+    product_type_name: str
+    complexity_name: str
+    quantity: int
+    fabric_name: str
+    fabric_width_cm: NumberOut
+    waste_coefficient: NumberOut
+    material_length_m: NumberOut
+    material_cost: MoneyOut
+    cutting_hours: NumberOut
+    cutting_cost: MoneyOut
+    sewing_hours: NumberOut
+    sewing_cost: MoneyOut
+    hardware_cost: MoneyOut
+    branding_cost: MoneyOut
+    total_cost: MoneyOut
+    unit_cost: MoneyOut
+    lead_time_days: int
+    parts: list[EstimatePartRead]
+    hardware_items: list[HardwareLineRead]
+    branding_items: list[BrandingLineRead]
 
 
 DictionariesRead.model_rebuild()

@@ -61,6 +61,9 @@ export function Layout() {
                 {user?.role === 'technologist' ? 'технолог' : 'менеджер'}
               </span>
             </div>
+            <Link className="button button--ghost button--small" to="/profile">
+              Сменить пароль
+            </Link>
             <button type="button" className="button button--ghost button--small" onClick={handleLogout}>
               Выйти
             </button>

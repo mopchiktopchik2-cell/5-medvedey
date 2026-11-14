@@ -37,7 +37,7 @@ def set_auth_cookie(response: Response, token: str) -> None:
         max_age=settings.access_token_ttl_minutes * 60,
         httponly=True,
         samesite="lax",
-        secure=settings.is_production,
+        secure=settings.secure_cookies,
         path="/",
     )
 
