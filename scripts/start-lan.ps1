@@ -3,7 +3,8 @@
 # Останавливать: .\scripts\stop-lan.ps1
 
 param(
-    [switch]$NoBrowser
+    [switch]$NoBrowser,
+    [switch]$NoBuild
 )
 
 $ErrorActionPreference = 'Stop'
@@ -11,8 +12,21 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $envPath = Join-Path $root '.env'
 
+function Test-AppImages {
+    & docker image inspect 5-medvedey-backend:latest *> $null
+    if ($LASTEXITCODE -ne 0) { return $false }
+    & docker image inspect 5-medvedey-frontend:latest *> $null
+    return $LASTEXITCODE -eq 0
+}
+
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
     Write-Host 'Docker не найден. Установите Docker Desktop или запустите .\scripts\dev.ps1'
+    exit 1
+}
+
+if ($NoBuild -and -not (Test-AppImages)) {
+    Write-Host 'Локальные образы не найдены. Сначала загрузите архив:'
+    Write-Host '  .\scripts\import-images.ps1 -Archive <путь к 5-medvedey-images.tar>'
     exit 1
 }
 
@@ -40,9 +54,25 @@ Push-Location $root
 # поэтому на время вызова отключаем Stop, иначе скрипт упадёт на «Building».
 $previousPreference = $ErrorActionPreference
 $ErrorActionPreference = 'Continue'
+
+$composeArgs = @('-f', 'docker-compose.yml', '-f', 'docker-compose.lan.yml', 'up', '-d')
+if (-not $NoBuild) {
+    $composeArgs += '--build'
+}
+
 try {
-    docker compose -f docker-compose.yml -f docker-compose.lan.yml up -d --build
+    & docker compose @composeArgs
     $composeExit = $LASTEXITCODE
+
+    # Docker Hub может быть недоступен (TLS handshake timeout). Если образы
+    # уже загружены на компьютер, поднимаем их без сборки.
+    if ($composeExit -ne 0 -and -not $NoBuild -and (Test-AppImages)) {
+        Write-Host ''
+        Write-Host 'Сборка не удалась — похоже, Docker Hub недоступен.'
+        Write-Host 'Запускаем уже загруженные образы без сборки…'
+        & docker compose -f docker-compose.yml -f docker-compose.lan.yml up -d
+        $composeExit = $LASTEXITCODE
+    }
 } finally {
     $ErrorActionPreference = $previousPreference
     Pop-Location
@@ -50,6 +80,11 @@ try {
 
 if ($composeExit -ne 0) {
     Write-Host "Не удалось собрать и запустить контейнеры (код $composeExit)."
+    Write-Host 'Если ошибка про registry-1.docker.io или TLS handshake timeout — Docker Hub недоступен.'
+    Write-Host 'Перенесите готовые образы с другого компьютера:'
+    Write-Host '  на рабочем компьютере: .\scripts\export-images.ps1'
+    Write-Host '  здесь:                 .\scripts\import-images.ps1 -Archive <путь к tar>'
+    Write-Host '  затем:                 .\scripts\start-lan.ps1 -NoBuild'
     exit 1
 }
 

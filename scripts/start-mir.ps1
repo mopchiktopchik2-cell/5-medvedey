@@ -9,7 +9,8 @@
 # «М.и.Р. — сайт» на рабочем столе).
 
 param(
-    [switch]$NoBrowser
+    [switch]$NoBrowser,
+    [switch]$NoBuild
 )
 
 $ErrorActionPreference = 'Stop'
@@ -74,11 +75,15 @@ try {
         }
     }
 
-    & (Join-Path $PSScriptRoot 'start-lan.ps1') -NoBrowser:$NoBrowser
+    & (Join-Path $PSScriptRoot 'start-lan.ps1') -NoBrowser:$NoBrowser -NoBuild:$NoBuild
     if ($LASTEXITCODE -ne 0) {
         Write-Host ''
         Write-Host 'Запуск не удался. Подробности выше и в логах:'
         Write-Host '  docker compose -f docker-compose.yml -f docker-compose.lan.yml logs backend'
+        Write-Host ''
+        Write-Host 'Если Docker не может скачать образы (TLS handshake timeout),'
+        Write-Host 'перенесите их с компьютера, где сборка уже работает:'
+        Write-Host '  .\scripts\export-images.ps1  ->  .\scripts\import-images.ps1'
         exit $LASTEXITCODE
     }
 } finally {

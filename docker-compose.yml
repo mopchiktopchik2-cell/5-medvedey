@@ -8,6 +8,9 @@ x-logging: &default-logging
 services:
   backend:
     build: ./backend
+    # Фиксированное имя нужно для переноса образов между компьютерами
+    # (scripts\export-images.ps1 / import-images.ps1) без Docker Hub.
+    image: 5-medvedey-backend:latest
     environment:
       # Значения зафиксированы намеренно: локальный .env не должен
       # включать демо-учётки или отключать защиту на сервере.
@@ -49,6 +52,7 @@ services:
 
   frontend:
     build: ./frontend
+    image: 5-medvedey-frontend:latest
     depends_on:
       backend:
         condition: service_healthy

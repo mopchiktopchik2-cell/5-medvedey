@@ -102,6 +102,7 @@ python -m app.cli create-user --email boss@example.ru --name "Иванов И. �
 
 ```
 start-site.cmd         запуск сайта двойным щелчком (Docker + браузер)
+start-site-offline.cmd запуск без сборки — из заранее загруженных образов
 stop-site.cmd          остановка стенда, данные сохраняются
 backend/
   app/
@@ -141,6 +142,8 @@ scripts/
   start-mir.ps1        запуск «одним ярлыком»: Docker + LAN-стенд + браузер
   start-lan.ps1        запуск в Docker для внутренней сети (порт 8080)
   stop-lan.ps1         остановка LAN-стенда
+  export-images.ps1    сохранить готовые образы в tar (перенос без Docker Hub)
+  import-images.ps1    загрузить образы из tar
   create-shortcuts.ps1 ярлыки «М.и.Р. — сайт» и «М.и.Р. — остановить»
   backup.ps1           резервная копия базы, логотипа и outbox
   restore.ps1          восстановление из архива
@@ -241,6 +244,27 @@ docker compose exec backend python -m app.cli create-user --email boss@example.r
 Если Docker не установлен или не запустился, окно не закроется и покажет, что делать. При переносе папки проекта на другой компьютер ярлыки нужно создать заново.
 
 После перезагрузки сайт поднимется сам, если в Docker Desktop включить «Start Docker Desktop when you sign in»: у контейнеров стоит `restart: unless-stopped`, и они стартуют вместе с Docker.
+
+### Если Docker Hub недоступен
+
+Сборка может упасть с ошибкой `TLS handshake timeout` на `registry-1.docker.io` — это недоступность Docker Hub, а не ошибка проекта. Варианты по порядку:
+
+1. Включить VPN или прокси для Docker Desktop: **Settings → Resources → Proxies**.
+2. Добавить зеркало реестра: **Settings → Docker Engine**, в JSON добавить
+   ```json
+   "registry-mirrors": ["https://mirror.gcr.io"]
+   ```
+   затем **Apply & restart**. Публичные зеркала бывают нестабильны — если одно не отвечает, попробуйте другое.
+3. Перенести уже собранные образы с компьютера, где сервис работает:
+   ```powershell
+   .\scripts\export-images.ps1          # создаст dist\5-medvedey-images.tar
+   ```
+   скопировать tar на целевой компьютер и выполнить:
+   ```powershell
+   .\scripts\import-images.ps1 -Archive <путь к tar>
+   .\start-site-offline.cmd             # запуск без сборки и без Docker Hub
+   ```
+   Обычный `start-site.cmd` тоже подойдёт: если сборка не удалась, он автоматически запустит уже загруженные образы.
 
 С другого компьютера сайт открывается по этому адресу. Если не открывается — разрешите порт 8080 в брандмауэре Windows от имени администратора:
 
