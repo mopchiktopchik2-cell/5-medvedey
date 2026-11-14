@@ -73,7 +73,7 @@ if (-not $Archive) {
         Write-Host 'Это может занять несколько минут.'
 
         if (Get-Command curl.exe -ErrorAction SilentlyContinue) {
-            & curl.exe --location --fail --silent --show-error --retry 4 --retry-delay 3 --output $Archive $Url
+            & curl.exe --location --fail --silent --show-error --connect-timeout 30 --max-time 900 --retry 4 --retry-delay 3 --output $Archive $Url
             $downloadExit = $LASTEXITCODE
         } else {
             Invoke-WebRequest -UseBasicParsing -Uri $Url -OutFile $Archive -TimeoutSec 900

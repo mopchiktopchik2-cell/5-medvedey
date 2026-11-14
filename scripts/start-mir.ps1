@@ -72,8 +72,23 @@ try {
         if (-not $ready) {
             Write-Host 'Docker не запустился за 4 минуты.'
             Write-Host 'Проверьте Docker Desktop: возможно, он просит обновление или включение WSL2.'
+            Write-Host 'Если открыто окно лицензии или первоначальной настройки — примите его и повторите.'
             exit 1
         }
+    }
+
+    # Docker Desktop может быть переключён в режим Windows-контейнеров.
+    # Наши образы — Linux, в этом режиме они не запустятся.
+    $osType = ''
+    try {
+        $osType = (& docker info --format '{{.OSType}}' 2>$null | Out-String).Trim()
+    } catch {
+    }
+    if ($osType -and $osType -ne 'linux') {
+        Write-Host "Docker Desktop работает в режиме Windows-контейнеров ($osType)."
+        Write-Host 'Переключите его на Linux containers: правый клик по иконке Docker в трее'
+        Write-Host '→ «Switch to Linux containers…», дождитесь статуса Running и запустите ярлык снова.'
+        exit 1
     }
 
     & (Join-Path $PSScriptRoot 'start-lan.ps1') -NoBrowser:$NoBrowser -NoBuild:$NoBuild -Build:$Build
