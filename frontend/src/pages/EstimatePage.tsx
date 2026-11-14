@@ -152,10 +152,14 @@ export function EstimatePage() {
   ]
 
   return (
-    <div className="page">
+    <div className="page page--estimate">
       <header className="page__header page__header--row">
-        <div>
-          <h1>Коммерческое предложение № {estimate.number}</h1>
+        <div className="page__heading">
+          <p className="eyebrow">04 / коммерческое предложение</p>
+          <h1>
+            Коммерческое <em>предложение</em>
+            <span className="h1__doc">№ {estimate.number}</span>
+          </h1>
           <p className="page__subtitle">
             {dateTime(estimate.created_at)} · автор: {estimate.author_name ?? '—'}
           </p>

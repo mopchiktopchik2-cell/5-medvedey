@@ -1,5 +1,10 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth'
+
+const NAV = [
+  { to: '/', end: true, index: '01', label: 'Калькулятор' },
+  { to: '/estimates', end: false, index: '02', label: 'История' },
+]
 
 export function Layout() {
   const { user, logout } = useAuth()
@@ -14,21 +19,28 @@ export function Layout() {
     <div className="app">
       <header className="topbar">
         <div className="topbar__inner">
-          <div className="brand">
-            <span className="brand__mark">М.и.Р.</span>
-            <span className="brand__text">Калькулятор себестоимости</span>
-          </div>
+          <Link to="/" className="brand" aria-label="М.и.Р. — на главную">
+            <span className="brand__mark">М</span>
+            <span className="brand__text">
+              <strong>М.и.Р.</strong>
+              <small>швейный цех · сургут</small>
+            </span>
+          </Link>
 
-          <nav className="nav">
-            <NavLink to="/" end className={({ isActive }) => (isActive ? 'nav__link nav__link--active' : 'nav__link')}>
-              Калькулятор
-            </NavLink>
-            <NavLink
-              to="/estimates"
-              className={({ isActive }) => (isActive ? 'nav__link nav__link--active' : 'nav__link')}
-            >
-              История
-            </NavLink>
+          <nav className="nav" aria-label="Основная навигация">
+            {NAV.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                className={({ isActive }) =>
+                  isActive ? 'nav__link nav__link--active' : 'nav__link'
+                }
+              >
+                <span className="nav__index">{item.index}</span>
+                {item.label}
+              </NavLink>
+            ))}
             {user?.role === 'technologist' && (
               <NavLink
                 to="/dictionaries"
@@ -36,6 +48,7 @@ export function Layout() {
                   isActive ? 'nav__link nav__link--active' : 'nav__link'
                 }
               >
+                <span className="nav__index">03</span>
                 Справочники
               </NavLink>
             )}
@@ -52,6 +65,17 @@ export function Layout() {
               Выйти
             </button>
           </div>
+        </div>
+
+        <div className="topbar__ticker" aria-hidden="true">
+          <span>Швейный цех «М.и.Р.»</span>
+          <span className="topbar__dot">●</span>
+          <span>Себестоимость</span>
+          <span className="topbar__dot">●</span>
+          <span>Раскрой</span>
+          <span className="topbar__dot">●</span>
+          <span>Коммерческое предложение</span>
+          <span className="topbar__ticker-end">Сургут · швейное производство</span>
         </div>
       </header>
 

@@ -28,16 +28,42 @@ export function LoginPage() {
 
   return (
     <div className="login">
-      <div className="login__card">
-        <div className="brand brand--login">
-          <span className="brand__mark">М.и.Р.</span>
-          <span className="brand__text">Швейный цех · Сургут</span>
+      <aside className="login__panel">
+        <div className="brand">
+          <span className="brand__mark">М</span>
+          <span className="brand__text">
+            <strong>М.и.Р.</strong>
+            <small>швейный цех · сургут</small>
+          </span>
         </div>
 
-        <h1 className="login__title">Калькулятор себестоимости и раскроя</h1>
+        <p className="eyebrow">внутренний инструмент цеха</p>
+        <h1 className="login__title">
+          Себестоимость <em>без сюрпризов</em>
+        </h1>
         <p className="login__subtitle">
-          Вход для сотрудников цеха. Расчёт мерча и коммерческое предложение за 5–10 минут.
+          Считаем материал, раскрой, пошив и брендирование — и собираем коммерческое предложение
+          за 5–10 минут.
         </p>
+
+        <ul className="login__points">
+          <li>
+            <span>01</span>Материал, раскрой и пошив в одном расчёте
+          </li>
+          <li>
+            <span>02</span>КП в PDF с логотипом и реквизитами цеха
+          </li>
+          <li>
+            <span>03</span>История расчётов и ссылка для заказчика
+          </li>
+        </ul>
+
+        <div className="login__foot">М.и.Р. · калькулятор себестоимости и раскроя</div>
+      </aside>
+
+      <div className="login__card">
+        <p className="eyebrow">вход для сотрудников</p>
+        <h2 className="login__form-title">Вход в систему</h2>
 
         <form className="form" onSubmit={handleSubmit}>
           <label className="field">
@@ -62,7 +88,11 @@ export function LoginPage() {
             />
           </label>
 
-          {error && <p className="alert" role="alert">{error}</p>}
+          {error && (
+            <p className="alert" role="alert">
+              {error}
+            </p>
+          )}
 
           <button type="submit" className="button" disabled={busy}>
             {busy ? 'Входим…' : 'Войти'}

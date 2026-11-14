@@ -3,6 +3,21 @@ import { Link, useParams } from 'react-router-dom'
 import { api, logoUrl, sharedPdfUrl, type Estimate } from '../api'
 import { dateOnly, money, number, percent } from '../format'
 
+function ShareTop() {
+  return (
+    <div className="share-top">
+      <div className="brand">
+        <span className="brand__mark">М</span>
+        <span className="brand__text">
+          <strong>М.и.Р.</strong>
+          <small>швейный цех · сургут</small>
+        </span>
+      </div>
+      <span className="share-top__label">коммерческое предложение</span>
+    </div>
+  )
+}
+
 export function SharePage() {
   const { token = '' } = useParams()
   const [estimate, setEstimate] = useState<Estimate | null>(null)
@@ -28,9 +43,16 @@ export function SharePage() {
   if (error) {
     return (
       <div className="page page--narrow">
+        <ShareTop />
         <div className="card">
+          <p className="eyebrow">ссылка недоступна</p>
           <h1 className="h2">Ссылка недействительна</h1>
           <p className="muted">{error}</p>
+          <div className="actions actions--top">
+            <Link className="button button--ghost" to="/login">
+              Войти в систему
+            </Link>
+          </div>
         </div>
       </div>
     )
@@ -39,6 +61,7 @@ export function SharePage() {
   if (!estimate) {
     return (
       <div className="page page--narrow">
+        <ShareTop />
         <p className="hint">Загружаем расчёт…</p>
       </div>
     )
@@ -58,9 +81,15 @@ export function SharePage() {
 
   return (
     <div className="page page--narrow">
+      <ShareTop />
+
       <header className="page__header">
         {logo && <img className="brand-logo" src={logo} alt="Логотип цеха" />}
-        <h1>Коммерческое предложение № {estimate.number}</h1>
+        <p className="eyebrow">документ для заказчика</p>
+        <h1>
+          Коммерческое <em>предложение</em>
+          <span className="h1__doc">№ {estimate.number}</span>
+        </h1>
         <p className="page__subtitle">
           от {dateOnly(estimate.created_at)} · {estimate.contractor_name ?? 'Заказчик не указан'}
         </p>
@@ -126,6 +155,11 @@ export function SharePage() {
         <Link className="button button--ghost" to="/login">
           Войти в систему
         </Link>
+      </div>
+
+      <div className="page__footer">
+        <span>М.и.Р. · швейный цех · Сургут</span>
+        <span>Документ сформирован автоматически</span>
       </div>
     </div>
   )

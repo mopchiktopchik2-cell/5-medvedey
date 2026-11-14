@@ -97,8 +97,11 @@ export function HistoryPage() {
   return (
     <div className="page">
       <header className="page__header page__header--row">
-        <div>
-          <h1>История расчётов</h1>
+        <div className="page__heading">
+          <p className="eyebrow">02 / история</p>
+          <h1>
+            История <em>расчётов</em>
+          </h1>
           <p className="page__subtitle">
             {total} {plural(total, 'расчёт', 'расчёта', 'расчётов')} в базе
           </p>

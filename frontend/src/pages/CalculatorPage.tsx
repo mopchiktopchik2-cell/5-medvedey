@@ -324,8 +324,11 @@ export function CalculatorPage() {
   return (
     <div className="page">
       <header className="page__header page__header--row">
-        <div>
-          <h1>Расчёт изделия</h1>
+        <div className="page__heading">
+          <p className="eyebrow">01 / калькулятор</p>
+          <h1>
+            Расчёт <em>изделия</em>
+          </h1>
           <p className="page__subtitle">
             Экспресс-смета: материал, раскрой, пошив, фурнитура и брендирование
           </p>
@@ -345,7 +348,9 @@ export function CalculatorPage() {
       <div className="calc">
         <div className="calc__form">
           <section className="card">
-            <h2 className="h3">1. Изделие</h2>
+            <h2 className="h3">
+              <span className="step">01</span>Изделие
+            </h2>
             <div className="grid grid--2">
               <label className="field">
                 <span>Тип изделия</span>
@@ -381,7 +386,7 @@ export function CalculatorPage() {
                 />
               </label>
 
-              <div className="field">
+              <div className="field field--wide">
                 <span>Дополнительно</span>
                 <div className="checks">
                   <label className="check">
@@ -419,7 +424,9 @@ export function CalculatorPage() {
           </section>
 
           <section className="card">
-            <h2 className="h3">2. Материал</h2>
+            <h2 className="h3">
+              <span className="step">02</span>Материал
+            </h2>
             <div className="grid grid--2">
               <label className="field">
                 <span>Ткань</span>
@@ -475,7 +482,9 @@ export function CalculatorPage() {
 
           <section className="card">
             <div className="card__head">
-              <h2 className="h3">3. Детали кроя</h2>
+              <h2 className="h3">
+                <span className="step">03</span>Детали кроя
+              </h2>
               <button type="button" className="button button--ghost button--small" onClick={addPart}>
                 + Деталь
               </button>
@@ -543,7 +552,9 @@ export function CalculatorPage() {
           </section>
 
           <section className="card">
-            <h2 className="h3">4. Фурнитура</h2>
+            <h2 className="h3">
+              <span className="step">04</span>Фурнитура
+            </h2>
             <div className="lines">
               {dictionaries?.hardware
                 .filter((item) => item.is_active)
@@ -587,7 +598,9 @@ export function CalculatorPage() {
           </section>
 
           <section className="card">
-            <h2 className="h3">5. Брендирование</h2>
+            <h2 className="h3">
+              <span className="step">05</span>Брендирование
+            </h2>
             <div className="lines">
               {dictionaries?.branding
                 .filter((item) => item.is_active)
@@ -629,7 +642,9 @@ export function CalculatorPage() {
           </section>
 
           <section className="card">
-            <h2 className="h3">6. Заказчик</h2>
+            <h2 className="h3">
+              <span className="step">06</span>Заказчик
+            </h2>
             <div className="grid grid--2">
               <label className="field">
                 <span>Подрядчик</span>

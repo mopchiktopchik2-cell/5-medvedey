@@ -66,6 +66,12 @@
 - **Frontend:** React 19, TypeScript, Vite, React Router, oxlint.
 - **Инфраструктура:** Docker Compose, GitHub Actions (ruff, pytest, oxlint, сборка).
 
+## Интерфейс
+
+Светлая редакционная тема: белый фон, волосяные рамки, острые углы и оранжевый акцент. Заголовки — Onest, акцентный курсив — Playfair Display, служебные подписи и цифры — Roboto Mono, текст — Manrope.
+
+Шрифты самохостингуются в `frontend/public/fonts` и не зависят от внешних CDN. Лицензии и источники — в [`frontend/public/fonts/NOTICE.md`](frontend/public/fonts/NOTICE.md).
+
 ## Структура
 
 ```
@@ -84,8 +90,11 @@ backend/
     assets/fonts/      PT Sans Regular/Bold + лицензия OFL
   tests/               41 тест: формулы, API, права, PDF, email, CSV, логотип
 frontend/
+  public/fonts/        self-hosted шрифты интерфейса (OFL / Apache 2.0)
   src/
     pages/             вход, калькулятор, история, КП, справочники, публичная смета
+    index.css          тема интерфейса и адаптив
+    fonts.css          @font-face для локальных шрифтов
     api.ts             типизированный клиент
     auth.tsx           контекст авторизации
 docs/

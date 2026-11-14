@@ -112,7 +112,7 @@ function EntityTable({
               <td className="table__action">
                 <button
                   type="button"
-                  className="button button--small"
+                  className="button button--ghost button--small"
                   onClick={() => void save(row.values, row.id)}
                   disabled={busy === String(row.id)}
                 >
@@ -411,20 +411,24 @@ export function DictionariesPage() {
   return (
     <div className="page">
       <header className="page__header">
-        <h1>Справочники</h1>
+        <p className="eyebrow">03 / справочники</p>
+        <h1>
+          Базовые <em>параметры</em>
+        </h1>
         <p className="page__subtitle">
-          Базовые параметры цеха. Изменения сразу влияют на новые расчёты.
+          Справочники цеха. Изменения сразу влияют на новые расчёты.
         </p>
       </header>
 
       <div className="tabs">
-        {tabs.map((item) => (
+        {tabs.map((item, index) => (
           <button
             key={item.key}
             type="button"
             className={tab === item.key ? 'tab tab--active' : 'tab'}
             onClick={() => setTab(item.key)}
           >
+            <span className="tab__index">{String(index + 1).padStart(2, '0')}</span>
             {item.label}
           </button>
         ))}
