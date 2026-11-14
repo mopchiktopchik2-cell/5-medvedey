@@ -1,0 +1,26 @@
+# Запуск для внутренней сети (пилот или демо): HTTP без TLS, демо-учётки включены.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.lan.yml up -d --build
+#   .\scripts\start-lan.ps1
+#
+# Этот режим НЕ для публичного интернета: cookie без Secure и известные пароли
+# демо-учёток. Сайт открывается по адресу http://<IP-компьютера>:8080,
+# API доступен через тот же nginx по /api/.
+
+services:
+  backend:
+    environment:
+      # LAN работает по HTTP, поэтому secure-cookie выключены.
+      COOKIE_SECURE: "false"
+      # Демо-справочники и учётки для показа заказчику.
+      SEED_DEMO_DATA: "true"
+    # Наружу нужен только фронтенд: nginx сам проксирует /api/ в backend.
+    # !override убирает публикацию 8000 из базового compose, чтобы LAN-стенд
+    # не конфликтовал с локальным uvicorn на этом же компьютере.
+    ports: !override []
+
+  frontend:
+    # !override заменяет 5173:80 из базового файла на один порт 8080,
+    # поэтому LAN-стенд не конфликтует с `npm run dev`.
+    ports: !override
+      - "8080:80"

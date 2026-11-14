@@ -4,6 +4,20 @@
 
 Репозиторий: [mopchiktopchik2-cell/5-medvedey](https://github.com/mopchiktopchik2-cell/5-medvedey)
 
+## Ожидаемый результат
+
+Что заказчик получает по итогам работы и где это проверить:
+
+| Результат | Где |
+| --- | --- |
+| Сервис, доступный по внутренней сети или закрытому URL | `.\scripts\start-lan.ps1` → `http://<IP>:8080`; боевой контур — раздел «Развёртывание на хостинге в РФ» |
+| Заполненные справочники (10 тканей, 5 фурнитуры, 4 изделия) | `backend/app/seed.py`, закреплено тестом `backend/tests/test_seed.py` |
+| Инструкция менеджеру | [`docs/manager-guide.md`](docs/manager-guide.md) |
+| Исходный код с комментариями и инструкцией по развёртыванию | этот README и каталог [`docs/`](docs/) |
+| Расчёт себестоимости и PDF за 5–10 минут | сценарий с таймингом — [`docs/demo-script.md`](docs/demo-script.md) |
+
+Сопоставление всех пяти пунктов с реализацией и приёмочный чек-лист — в [`docs/acceptance.md`](docs/acceptance.md).
+
 ## Что умеет
 
 - **Калькулятор пошива** — тип изделия, сложность, тираж, подкладка/капюшон/карманы → трудоёмкость и стоимость.
@@ -105,8 +119,9 @@ backend/
   migrations/          Alembic: baseline-миграция и окружение
   alembic.ini
   entrypoint.sh        миграции + запуск uvicorn в контейнере
-  tests/               60 тестов: формулы, API, права, PDF, email, CSV, логотип,
-                       подрядчики, сотрудники, публичные ссылки, rate-limit
+  tests/               62 теста: формулы, API, права, PDF, email, CSV, логотип,
+                       подрядчики, сотрудники, публичные ссылки, rate-limit,
+                       справочники и идемпотентность сида
 frontend/
   public/fonts/        self-hosted шрифты интерфейса (OFL / Apache 2.0)
   src/
@@ -121,10 +136,14 @@ frontend/
 scripts/
   setup.ps1            установка зависимостей и генерация SECRET_KEY
   dev.ps1              запуск бэкенда и фронтенда
+  start-lan.ps1        запуск в Docker для внутренней сети (порт 8080)
+  stop-lan.ps1         остановка LAN-стенда
   check_migrations.py  проверка сценариев миграций
 docs/
   manager-guide.md     инструкция менеджера
   technologist-guide.md инструкция технолога
+  demo-script.md       сценарий показа на 5–6 минут
+  acceptance.md        приёмка: пять результатов и чек-лист
   requirements-checklist.md  матрица соответствия ТЗ
   idea.md              описание кейса
 ```
@@ -182,9 +201,30 @@ Compose намеренно безопасен по умолчанию: `APP_ENV=
 docker compose exec backend python -m app.cli create-user --email boss@example.ru --name "Иванов И. И."
 ```
 
-Если нужен демо-стенд с учётками `manager@mir.ru` / `technologist@mir.ru`, временно поставьте в `docker-compose.yml` `SEED_DEMO_DATA: "true"` — приложение предупредит в логах, что демо-пароли доступны всем.
+Если нужен демо-стенд с учётками `manager@mir.ru` / `technologist@mir.ru`, не меняйте боевой `docker-compose.yml` — используйте LAN-режим из следующего раздела: приложение предупредит в логах, что демо-пароли доступны всем.
 
 Контейнер бэкенда при старте выполняет `alembic upgrade head` (см. `backend/entrypoint.sh`), поэтому схема обновляется сама. Вариант с PostgreSQL проверен: схема, демо-данные, расчёт, профили подрядчиков и PDF работают без изменений в коде.
+
+## Пилот во внутренней сети
+
+Режим для цеха и показа заказчику: HTTP без TLS, фронтенд на порту **8080**, демо-справочники и учётки включены.
+
+```powershell
+.\scripts\start-lan.ps1   # собрать и запустить, выдаст адрес в локальной сети
+.\scripts\stop-lan.ps1    # остановить, данные сохранятся
+```
+
+Скрипт сам создаёт `.env`, генерирует `SECRET_KEY`, поднимает стек и печатает адрес вида `http://192.168.1.42:8080`. Демо-доступы: `manager@mir.ru` / `manager123` и `technologist@mir.ru` / `technolog123`.
+
+С другого компьютера сайт открывается по этому адресу. Если не открывается — разрешите порт 8080 в брандмауэре Windows от имени администратора:
+
+```powershell
+New-NetFirewallRule -DisplayName "5-medvedey LAN" -Direction Inbound -LocalPort 8080 -Protocol TCP -Action Allow
+```
+
+Этот режим **не для публичного интернета**: cookie передаются без `Secure`, а демо-пароли известны. Для внешнего доступа используйте раздел ниже и обязательно TLS.
+
+Без Docker, в режиме разработки, наружу можно выйти так: `uvicorn app.main:app --host 0.0.0.0` и `npm run dev -- --host`, затем открыть `http://<IP>:5173`.
 
 ## Развёртывание на хостинге в РФ
 
