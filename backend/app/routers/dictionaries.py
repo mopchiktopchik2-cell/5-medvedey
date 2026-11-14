@@ -240,7 +240,7 @@ def update_settings(payload: SettingsUpdate, session: SessionDep, _: Technologis
 
 
 @router.post("/contractors", response_model=ContractorRead, status_code=status.HTTP_201_CREATED)
-def create_contractor(payload: ContractorBase, session: SessionDep, _: CurrentUser) -> Contractor:
+def create_contractor(payload: ContractorBase, session: SessionDep, _: Technologist) -> Contractor:
     existing = session.scalar(select(Contractor).where(Contractor.name == payload.name))
     if existing:
         return existing
@@ -253,7 +253,7 @@ def create_contractor(payload: ContractorBase, session: SessionDep, _: CurrentUs
 
 @router.patch("/contractors/{contractor_id}", response_model=ContractorRead)
 def update_contractor(
-    contractor_id: int, payload: ContractorBase, session: SessionDep, _: CurrentUser
+    contractor_id: int, payload: ContractorBase, session: SessionDep, _: Technologist
 ) -> Contractor:
     contractor = _get_or_404(session, Contractor, contractor_id, "Подрядчик")
     contractor.name = payload.name

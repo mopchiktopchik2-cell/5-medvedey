@@ -260,6 +260,15 @@ def test_estimate_exposes_contractor_email(client: TestClient) -> None:
     assert estimate["contractor_email"] == contractor["contact_email"]
 
 
+def test_new_contractor_name_creates_profile(client: TestClient) -> None:
+    name = "ООО «Профиль из расчёта»"
+
+    client.post("/api/estimates", json=_payload(client, contractor_name=name))
+
+    profiles = _dictionaries(client)["contractors"]
+    assert any(item["name"] == name for item in profiles)
+
+
 def test_technologist_can_update_settings(technologist_client: TestClient) -> None:
     response = technologist_client.patch(
         "/api/dictionaries/settings",

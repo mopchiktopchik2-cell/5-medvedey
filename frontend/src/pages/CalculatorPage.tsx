@@ -99,7 +99,8 @@ function parseNumber(value: string): number {
 export function CalculatorPage() {
   const navigate = useNavigate()
   const [dictionaries, setDictionaries] = useState<Dictionaries | null>(null)
-  const [form, setForm] = useState<FormState>(() => loadDraft() ?? emptyForm())
+  const [restoredDraft] = useState(() => loadDraft())
+  const [form, setForm] = useState<FormState>(() => restoredDraft ?? emptyForm())
   const [preview, setPreview] = useState<EstimatePreview | null>(null)
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -133,7 +134,7 @@ export function CalculatorPage() {
             const preset = product ? PART_PRESETS[product.name] : undefined
             if (preset) patch.parts = withKeys(preset)
           }
-          if (patch.waste === undefined && data.settings) {
+          if (!restoredDraft && data.settings) {
             patch.waste = String(Math.round(data.settings.waste_coefficient * 100))
             patch.seam = String(data.settings.seam_allowance_cm)
           }
@@ -330,7 +331,8 @@ export function CalculatorPage() {
             Расчёт <em>изделия</em>
           </h1>
           <p className="page__subtitle">
-            Экспресс-смета: материал, раскрой, пошив, фурнитура и брендирование
+            Экспресс-смета: материал, раскрой, пошив, фурнитура и брендирование. Черновик
+            сохраняется в браузере автоматически.
           </p>
         </div>
         <button

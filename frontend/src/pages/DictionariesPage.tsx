@@ -186,11 +186,18 @@ const COMPLEXITY_FIELDS: FieldDef[] = [
   { key: 'factor', label: 'Коэффициент', kind: 'number' },
 ]
 
+const CONTRACTOR_FIELDS: FieldDef[] = [
+  { key: 'name', label: 'Название' },
+  { key: 'contact_email', label: 'Email для КП' },
+  { key: 'phone', label: 'Телефон' },
+]
+
 const FABRIC_BLANK = { name: '', width_cm: '180', price_per_m: '0', density: '', is_active: 'true' }
 const HARDWARE_BLANK = { name: '', unit: 'piece', price: '0', is_active: 'true' }
 const BRANDING_BLANK = { name: '', price: '0', is_active: 'true' }
 const PRODUCT_BLANK = { name: '', base_sewing_hours: '0.6', is_active: 'true' }
 const COMPLEXITY_BLANK = { code: '', name: '', factor: '1.0' }
+const CONTRACTOR_BLANK = { name: '', contact_email: '', phone: '' }
 
 function LogoCard() {
   const [meta, setMeta] = useState<LogoMeta | null>(null)
@@ -285,9 +292,9 @@ function LogoCard() {
 }
 
 export function DictionariesPage() {
-  const [tab, setTab] = useState<'fabrics' | 'hardware' | 'branding' | 'products' | 'complexity' | 'settings'>(
-    'fabrics',
-  )
+  const [tab, setTab] = useState<
+    'fabrics' | 'hardware' | 'branding' | 'products' | 'complexity' | 'contractors' | 'settings'
+  >('fabrics')
   const [data, setData] = useState<Dictionaries | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -357,6 +364,19 @@ export function DictionariesPage() {
     [data],
   )
 
+  const contractorRows = useMemo<RowItem[]>(
+    () =>
+      (data?.contractors ?? []).map((item) => ({
+        id: item.id,
+        values: {
+          name: item.name,
+          contact_email: item.contact_email ?? '',
+          phone: item.phone ?? '',
+        },
+      })),
+    [data],
+  )
+
   const [settingsDraft, setSettingsDraft] = useState<Record<string, string>>({})
   useEffect(() => {
     if (!data) return
@@ -405,6 +425,7 @@ export function DictionariesPage() {
     { key: 'branding', label: 'Брендирование' },
     { key: 'products', label: 'Изделия' },
     { key: 'complexity', label: 'Сложность' },
+    { key: 'contractors', label: 'Подрядчики' },
     { key: 'settings', label: 'Настройки' },
   ] as const
 
@@ -530,6 +551,29 @@ export function DictionariesPage() {
                 await reload()
               }}
             />
+          )}
+
+          {tab === 'contractors' && (
+            <div className="stack">
+              <p className="hint">
+                Email подставляется в форму отправки КП, а подрядчик сохраняется в истории расчётов.
+              </p>
+              <EntityTable
+                fields={CONTRACTOR_FIELDS}
+                items={contractorRows}
+                blank={CONTRACTOR_BLANK}
+                addLabel="Добавить подрядчика"
+                onSave={async (values, id) => {
+                  await api.saveContractor({
+                    id,
+                    name: values.name.trim(),
+                    contact_email: values.contact_email.trim() || null,
+                    phone: values.phone.trim() || null,
+                  })
+                  await reload()
+                }}
+              />
+            </div>
           )}
 
           {tab === 'settings' && (

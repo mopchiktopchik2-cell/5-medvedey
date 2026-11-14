@@ -13,10 +13,12 @@
 - **Логотип цеха** — технолог загружает PNG/JPEG/WebP, логотип выводится в шапке PDF и на публичной странице.
 - **История расчётов** — поиск по номеру/изделию/подрядчику, фильтры по дате и типу изделия, экспорт в CSV, подгрузка страницами.
 - **Справочники технолога** — ткани, фурнитура, брендирование, изделия, коэффициенты, нормо-часы.
+- **Профили подрядчиков** — название, email для КП и телефон; подрядчик сохраняется в истории расчётов, email подставляется в отправку.
 - **Роли** — менеджер видит только свои расчёты, технолог — все и правит справочники.
 - **Ссылка для подрядчика** — публичный просмотр сметы и скачивание PDF без входа.
 - **Отправка КП на email** — PDF вложением через SMTP; без SMTP письмо сохраняется в `outbox` как `.eml`.
 - **Повтор расчёта** — сохранённая смета открывается в калькуляторе со всеми параметрами.
+- **Черновик расчёта** — параметры автоматически сохраняются в браузере и переживают обрыв связи.
 
 ## Роли и доступы
 
@@ -88,7 +90,7 @@ backend/
     seed.py            справочники и демо-пользователи
     routers/           auth, dictionaries, estimates, health
     assets/fonts/      PT Sans Regular/Bold + лицензия OFL
-  tests/               41 тест: формулы, API, права, PDF, email, CSV, логотип
+  tests/               44 теста: формулы, API, права, PDF, email, CSV, логотип, подрядчики
 frontend/
   public/fonts/        self-hosted шрифты интерфейса (OFL / Apache 2.0)
   src/
@@ -99,6 +101,7 @@ frontend/
     auth.tsx           контекст авторизации
 docs/
   manager-guide.md     инструкция менеджера
+  requirements-checklist.md  матрица соответствия ТЗ
   idea.md              описание кейса
 ```
 
@@ -138,7 +141,19 @@ docker compose up --build
 docker compose -f docker-compose.yml -f docker-compose.postgres.yml up --build
 ```
 
-Интерфейс — http://localhost:5173, API — http://localhost:8000.
+Интерфейс — http://localhost:5173, API — http://localhost:8000. Вариант с PostgreSQL проверен: схема, демо-данные, расчёт, профили подрядчиков и PDF работают без изменений в коде.
+
+## Развёртывание на хостинге в РФ
+
+Сервис хранит базу, PDF и загруженный логотип только на вашем сервере и не обращается к внешним облачным API. Подойдёт VPS в российском дата-центре: Timeweb Cloud, Selectel, Yandex Cloud или аналогичный.
+
+1. Создайте сервер с Docker и Docker Compose, направьте домен на его IP.
+2. Задайте переменные окружения: `APP_ENV=production`, стойкий `SECRET_KEY`, `POSTGRES_PASSWORD`, `CORS_ORIGINS=https://ваш-домен`, `SEED_DEMO_DATA=false`.
+3. Запустите PostgreSQL-вариант: `docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --build`.
+4. Поставьте перед контейнерами reverse proxy с TLS (nginx или Caddy) и проксируйте `https://ваш-домен` на `frontend:80`.
+5. Настройте резервное копирование томов `backend-data` (SQLite, логотип, outbox) и `pg-data` (PostgreSQL) и мониторинг доступности `/api/health`.
+
+SMTP можно указать любого российского провайдера (Яндекс 360, Mail.ru для бизнеса, Timeweb) — достаточно заполнить переменные `SMTP_*`.
 
 ## Переменные окружения
 
@@ -148,6 +163,7 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml up --build
 | --- | --- | --- |
 | `APP_ENV` | `development` | `production` включает secure-cookie |
 | `DATABASE_URL` | `sqlite:///./data/app.db` | строка подключения SQLAlchemy |
+| `POSTGRES_PASSWORD` | `mir` | пароль PostgreSQL для compose-оверрайда |
 | `CORS_ORIGINS` | `http://localhost:5173` | разрешённые источники через запятую |
 | `SECRET_KEY` | dev-значение | подпись JWT, заменить в production |
 | `ACCESS_TOKEN_TTL_MINUTES` | `720` | срок жизни сессии |
@@ -172,6 +188,7 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml up --build
 | GET | `/api/auth/me` | авторизованные |
 | GET | `/api/dictionaries` | авторизованные |
 | POST/PATCH | `/api/dictionaries/{fabrics,hardware,branding,product-types,complexity}` | технолог |
+| POST/PATCH | `/api/contractors` | технолог |
 | PATCH | `/api/dictionaries/settings` | технолог |
 | POST | `/api/dictionaries/logo` | технолог (multipart, PNG/JPEG/WebP ≤ 2 МБ) |
 | DELETE | `/api/dictionaries/logo` | технолог |
@@ -209,6 +226,7 @@ npm run build
 - Раскладка кроя — эвристика «полками» с поворотом деталей, а не полноценный оптимизатор вложенности. Для укрупнённого экспресс-расчёта этого достаточно; точный расклад даёт САПР.
 - Если SMTP не настроен, письмо с КП не отправляется, а сохраняется в `data/outbox/*.eml` — файл можно открыть почтовым клиентом. Это осознанный демо-фолбэк, а не ошибка.
 - Схема БД создаётся автоматически (`create_all`); для продакшена стоит добавить Alembic.
+- SQLite оставлен вариантом по умолчанию для локальной демонстрации. Для рабочего контура используйте PostgreSQL-оверрайд: он проверен и описан выше.
 - Автотесты фронтенда отсутствуют: сквозной сценарий проверялся вручную через headless-браузер.
 
 ## Лицензия

@@ -306,8 +306,21 @@ export const api = {
   },
   deleteLogo: () => request<void>('/dictionaries/logo', { method: 'DELETE' }),
 
-  createContractor: (payload: { name: string; contact_email?: string | null; phone?: string | null }) =>
-    request<Contractor>('/contractors', { method: 'POST', body: JSON.stringify(payload) }),
+  saveContractor: (payload: {
+    id?: number
+    name: string
+    contact_email?: string | null
+    phone?: string | null
+  }) => {
+    const body = JSON.stringify({
+      name: payload.name,
+      contact_email: payload.contact_email ?? null,
+      phone: payload.phone ?? null,
+    })
+    return payload.id
+      ? request<Contractor>(`/contractors/${payload.id}`, { method: 'PATCH', body })
+      : request<Contractor>('/contractors', { method: 'POST', body })
+  },
 
   saveFabric: (payload: Partial<Fabric> & { id?: number }) =>
     payload.id
