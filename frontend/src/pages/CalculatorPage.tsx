@@ -242,6 +242,21 @@ export function CalculatorPage() {
   const product = dictionaries?.product_types.find((item) => String(item.id) === form.productTypeId)
   const fabric = dictionaries?.fabrics.find((item) => String(item.id) === form.fabricId)
 
+  // Дубли названий деталей не пройдут проверку на бэкенде — предупреждаем сразу.
+  const duplicatePartNames = (() => {
+    const firstSeen = new Map<string, string>()
+    const duplicates = new Set<string>()
+    for (const row of form.parts) {
+      const name = row.name.trim()
+      if (!name) continue
+      const key = name.toLowerCase()
+      const first = firstSeen.get(key)
+      if (first) duplicates.add(first)
+      else firstSeen.set(key, name)
+    }
+    return [...duplicates]
+  })()
+
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     touched.current = true
     setForm((current) => ({ ...current, [key]: value }))
@@ -548,6 +563,12 @@ export function CalculatorPage() {
               </tbody>
             </table>
             {!form.parts.length && <p className="hint">Добавьте хотя бы одну деталь кроя.</p>}
+            {duplicatePartNames.length > 0 && (
+              <p className="hint hint--danger">
+                Детали кроя повторяются: {duplicatePartNames.join(', ')}. Укажите разные названия —
+                количество задаётся в колонке «В комплекте».
+              </p>
+            )}
             <p className="hint">
               Припуск {number(parseNumber(form.seam) || 0, 1)} см добавляется с каждой стороны детали.
             </p>

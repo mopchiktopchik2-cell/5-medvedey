@@ -731,6 +731,10 @@ input[type='date'] {
   color: var(--muted);
 }
 
+.hint--danger {
+  color: var(--danger);
+}
+
 .hint--pad {
   padding: 22px 26px;
 }

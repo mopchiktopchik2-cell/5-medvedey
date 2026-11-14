@@ -84,6 +84,26 @@ def test_part_wider_than_roll_returns_400(client: TestClient) -> None:
     assert "шире рулона" in response.json()["detail"]
 
 
+def test_duplicate_part_names_return_400(client: TestClient) -> None:
+    payload = _payload(
+        client,
+        parts=[
+            {"name": "Перед", "length_cm": 70, "width_cm": 50, "count_per_unit": 1},
+            {"name": " перед ", "length_cm": 70, "width_cm": 50, "count_per_unit": 1},
+        ],
+    )
+
+    preview = client.post("/api/estimates/preview", json=payload)
+    assert preview.status_code == 400
+    assert "повторяются" in preview.json()["detail"]
+
+    created = client.post("/api/estimates", json=payload)
+    assert created.status_code == 400
+    assert "перед" in created.json()["detail"].casefold()
+
+    assert client.get("/api/estimates").json()["total"] == 0
+
+
 def test_create_estimate_and_read_it(client: TestClient) -> None:
     created = client.post("/api/estimates", json=_payload(client))
 

@@ -25,6 +25,7 @@ from app.schemas import (
     HardwareLineRead,
     LayoutRowRead,
     MaterialBreakdown,
+    PartIn,
     SewingBreakdown,
     TotalsRead,
 )
@@ -80,7 +81,27 @@ def _resolve(session: Session, payload: EstimateRequest) -> tuple:
     return product_type, complexity, fabric, settings_row
 
 
+def _check_unique_part_names(parts: list[PartIn]) -> None:
+    """Ловит дубли до вставки в БД: иначе UNIQUE(estimate_id, name) даёт 500."""
+    first_seen: dict[str, str] = {}
+    duplicates: list[str] = []
+    for item in parts:
+        key = item.name.casefold()
+        if key in first_seen:
+            if first_seen[key] not in duplicates:
+                duplicates.append(first_seen[key])
+        else:
+            first_seen[key] = item.name
+    if duplicates:
+        raise CalculationError(
+            "Детали кроя повторяются: "
+            + ", ".join(duplicates)
+            + ". Укажите разные названия — количество задаётся в колонке «В комплекте»."
+        )
+
+
 def calculate(session: Session, payload: EstimateRequest) -> CalculatedEstimate:
+    _check_unique_part_names(payload.parts)
     product_type, complexity, fabric, settings_row = _resolve(session, payload)
     warnings: list[str] = []
 
