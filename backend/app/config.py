@@ -23,6 +23,16 @@ class Settings(BaseSettings):
     # Куда складывать сгенерированные PDF, если SMTP не настроен
     outbox_dir: str = "./data/outbox"
 
+    # SMTP для отправки КП. Пока хост не задан, письма складываются в outbox.
+    smtp_host: str | None = None
+    smtp_port: int = 465
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    smtp_from: str | None = None
+    smtp_use_ssl: bool = True
+    smtp_starttls: bool = False
+    smtp_timeout_seconds: int = 15
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

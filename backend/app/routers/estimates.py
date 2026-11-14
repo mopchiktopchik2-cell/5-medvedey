@@ -1,3 +1,5 @@
+import csv
+import io
 import secrets
 from datetime import date, timedelta
 from typing import Annotated
@@ -9,6 +11,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.config import settings
 from app.db import get_session
+from app.mailer import EmailDeliveryError, send_estimate_email
 from app.models import (
     Contractor,
     Estimate,
@@ -19,6 +22,8 @@ from app.models import (
 )
 from app.pdf import build_estimate_pdf
 from app.schemas import (
+    EmailSendRequest,
+    EmailSendResult,
     EstimateListItem,
     EstimateListResponse,
     EstimatePreview,
@@ -40,6 +45,7 @@ def _detail_query():
         selectinload(Estimate.hardware_items),
         selectinload(Estimate.branding_items),
         selectinload(Estimate.author),
+        selectinload(Estimate.contractor),
     )
 
 
@@ -176,18 +182,14 @@ def create_estimate(payload: EstimateRequest, session: SessionDep, user: Current
     return estimate
 
 
-@router.get("", response_model=EstimateListResponse)
-def list_estimates(
-    session: SessionDep,
-    user: CurrentUser,
-    date_from: date | None = None,
-    date_to: date | None = None,
-    contractor_id: int | None = None,
-    product_type_id: int | None = None,
-    q: Annotated[str | None, Query(max_length=120)] = None,
-    limit: Annotated[int, Query(ge=1, le=200)] = 50,
-    offset: Annotated[int, Query(ge=0)] = 0,
-) -> EstimateListResponse:
+def _filter_conditions(
+    user,
+    date_from: date | None,
+    date_to: date | None,
+    contractor_id: int | None,
+    product_type_id: int | None,
+    q: str | None,
+) -> list:
     conditions = []
     if user.role != UserRole.TECHNOLOGIST:
         conditions.append(Estimate.author_id == user.id)
@@ -208,7 +210,22 @@ def list_estimates(
                 _lower(Estimate.contractor_name).like(needle),
             )
         )
+    return conditions
 
+
+@router.get("", response_model=EstimateListResponse)
+def list_estimates(
+    session: SessionDep,
+    user: CurrentUser,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    contractor_id: int | None = None,
+    product_type_id: int | None = None,
+    q: Annotated[str | None, Query(max_length=120)] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> EstimateListResponse:
+    conditions = _filter_conditions(user, date_from, date_to, contractor_id, product_type_id, q)
     base = select(Estimate).where(*conditions)
     total = session.scalar(select(func.count()).select_from(base.subquery())) or 0
 
@@ -222,6 +239,81 @@ def list_estimates(
     return EstimateListResponse(
         items=[EstimateListItem.model_validate(item) for item in items],
         total=total,
+    )
+
+
+def _csv_money(value) -> str:
+    return f"{value:.2f}".replace(".", ",")
+
+
+@router.get("/export.csv")
+def export_estimates_csv(
+    session: SessionDep,
+    user: CurrentUser,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    contractor_id: int | None = None,
+    product_type_id: int | None = None,
+    q: Annotated[str | None, Query(max_length=120)] = None,
+    limit: Annotated[int, Query(ge=1, le=10_000)] = 10_000,
+) -> Response:
+    conditions = _filter_conditions(user, date_from, date_to, contractor_id, product_type_id, q)
+    items = session.scalars(
+        select(Estimate)
+        .where(*conditions)
+        .options(selectinload(Estimate.author))
+        .order_by(Estimate.created_at.desc(), Estimate.id.desc())
+        .limit(limit)
+    ).all()
+
+    buffer = io.StringIO()
+    buffer.write("\ufeff")  # BOM, чтобы Excel корректно открыл кириллицу
+    writer = csv.writer(buffer, delimiter=";")
+    writer.writerow(
+        [
+            "Номер",
+            "Дата",
+            "Подрядчик",
+            "Изделие",
+            "Сложность",
+            "Тираж, шт.",
+            "Материал",
+            "Раскрой",
+            "Пошив",
+            "Фурнитура",
+            "Брендирование",
+            "Итого",
+            "За единицу",
+            "Срок, дн.",
+            "Автор",
+        ]
+    )
+    for item in items:
+        writer.writerow(
+            [
+                item.number,
+                f"{item.created_at:%d.%m.%Y %H:%M}",
+                item.contractor_name or "",
+                item.product_type_name,
+                item.complexity_name,
+                item.quantity,
+                _csv_money(item.material_cost),
+                _csv_money(item.cutting_cost),
+                _csv_money(item.sewing_cost),
+                _csv_money(item.hardware_cost),
+                _csv_money(item.branding_cost),
+                _csv_money(item.total_cost),
+                _csv_money(item.unit_cost),
+                item.lead_time_days,
+                item.author_name or "",
+            ]
+        )
+
+    filename = f"kp-history-{date.today():%Y-%m-%d}.csv"
+    return Response(
+        content=buffer.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
@@ -267,6 +359,29 @@ def share_estimate(estimate_id: int, session: SessionDep, user: CurrentUser) -> 
         estimate.share_token = secrets.token_urlsafe(16)
         session.commit()
     return {"token": estimate.share_token, "path": f"/share/{estimate.share_token}"}
+
+
+@router.post("/{estimate_id}/send-email", response_model=EmailSendResult)
+def send_estimate_by_email(
+    estimate_id: int,
+    payload: EmailSendRequest,
+    session: SessionDep,
+    user: CurrentUser,
+) -> EmailSendResult:
+    estimate = _visible_estimate(session, user, estimate_id)
+    company = get_settings_row(session)
+    pdf_bytes = build_estimate_pdf(estimate, company)
+    try:
+        result = send_estimate_email(
+            estimate,
+            company,
+            pdf_bytes,
+            str(payload.to),
+            payload.message,
+        )
+    except EmailDeliveryError as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
+    return EmailSendResult(status=result.status, detail=result.detail, to=payload.to)
 
 
 @public_router.get("/estimates/{token}", response_model=EstimateRead)

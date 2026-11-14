@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, type Dictionaries, type EstimatePreview, type EstimateRequest } from '../api'
+import { DRAFT_KEY } from '../draft'
 import { money, number, percent, plural } from '../format'
 
 type PartRow = { key: string; name: string; length: string; width: string; count: string }
@@ -23,8 +24,6 @@ type FormState = {
   contractorName: string
   notes: string
 }
-
-const DRAFT_KEY = 'mir-estimate-draft-v1'
 
 const PART_PRESETS: Record<string, Omit<PartRow, 'key'>[]> = {
   Футболка: [

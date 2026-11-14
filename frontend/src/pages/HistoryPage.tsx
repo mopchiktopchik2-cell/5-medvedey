@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api, type Dictionaries, type EstimateListItem } from '../api'
+import { api, exportCsvUrl, type Dictionaries, type EstimateListItem } from '../api'
 import { dateTime, money, plural } from '../format'
+
+const PAGE_SIZE = 50
 
 export function HistoryPage() {
   const [dictionaries, setDictionaries] = useState<Dictionaries | null>(null)
   const [items, setItems] = useState<EstimateListItem[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const [query, setQuery] = useState('')
@@ -20,14 +23,13 @@ export function HistoryPage() {
     api.dictionaries().then(setDictionaries).catch(() => undefined)
   }, [])
 
-  const params = useMemo(
+  const filters = useMemo(
     () => ({
       q: query.trim() || undefined,
       date_from: dateFrom || undefined,
       date_to: dateTo || undefined,
       contractor_id: contractorId || undefined,
       product_type_id: productTypeId || undefined,
-      limit: 200,
     }),
     [query, dateFrom, dateTo, contractorId, productTypeId],
   )
@@ -37,7 +39,7 @@ export function HistoryPage() {
     setLoading(true)
     const timer = setTimeout(() => {
       api
-        .listEstimates(params)
+        .listEstimates({ ...filters, limit: PAGE_SIZE, offset: 0 })
         .then((data) => {
           if (cancelled) return
           setItems(data.items)
@@ -56,7 +58,22 @@ export function HistoryPage() {
       cancelled = true
       clearTimeout(timer)
     }
-  }, [params])
+  }, [filters])
+
+  async function loadMore() {
+    if (loadingMore) return
+    setLoadingMore(true)
+    try {
+      const data = await api.listEstimates({ ...filters, limit: PAGE_SIZE, offset: items.length })
+      setItems((current) => [...current, ...data.items])
+      setTotal(data.total)
+      setError(null)
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setLoadingMore(false)
+    }
+  }
 
   async function handleDelete(id: number, number: string) {
     if (!window.confirm(`Удалить расчёт ${number}?`)) return
@@ -79,11 +96,18 @@ export function HistoryPage() {
 
   return (
     <div className="page">
-      <header className="page__header">
-        <h1>История расчётов</h1>
-        <p className="page__subtitle">
-          {total} {plural(total, 'расчёт', 'расчёта', 'расчётов')} в базе
-        </p>
+      <header className="page__header page__header--row">
+        <div>
+          <h1>История расчётов</h1>
+          <p className="page__subtitle">
+            {total} {plural(total, 'расчёт', 'расчёта', 'расчётов')} в базе
+          </p>
+        </div>
+        <div className="actions actions--tight">
+          <a className="button button--ghost button--small" href={exportCsvUrl(filters)}>
+            Экспорт CSV
+          </a>
+        </div>
       </header>
 
       <section className="card">
@@ -186,6 +210,18 @@ export function HistoryPage() {
           <p className="hint hint--pad">Расчётов не найдено. Измените фильтры или создайте новый.</p>
         )}
         {loading && <p className="hint hint--pad">Загружаем…</p>}
+        {!loading && items.length < total && (
+          <div className="pagination">
+            <button
+              type="button"
+              className="button button--ghost button--small"
+              onClick={loadMore}
+              disabled={loadingMore}
+            >
+              {loadingMore ? 'Загружаем…' : `Показать ещё (${total - items.length})`}
+            </button>
+          </div>
+        )}
       </section>
     </div>
   )

@@ -303,7 +303,11 @@ class EstimateRead(BaseModel):
     created_at: datetime
     author_id: int
     author_name: str | None = None
+    product_type_id: int
+    complexity_id: int
+    fabric_id: int | None
     contractor_name: str | None
+    contractor_email: str | None = None
     product_type_name: str
     complexity_name: str
     complexity_factor: NumberOut
@@ -353,6 +357,17 @@ class EstimateListItem(BaseModel):
 class EstimateListResponse(BaseModel):
     items: list[EstimateListItem]
     total: int
+
+
+class EmailSendRequest(BaseModel):
+    to: EmailStr
+    message: str | None = Field(default=None, max_length=1000)
+
+
+class EmailSendResult(BaseModel):
+    status: Literal["sent", "outbox"]
+    detail: str
+    to: EmailStr
 
 
 DictionariesRead.model_rebuild()

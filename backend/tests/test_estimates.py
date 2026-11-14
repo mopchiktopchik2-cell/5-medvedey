@@ -1,5 +1,7 @@
 from fastapi.testclient import TestClient
 
+from app.config import settings
+
 
 def _dictionaries(client: TestClient) -> dict:
     response = client.get("/api/dictionaries")
@@ -150,6 +152,89 @@ def test_delete_estimate(client: TestClient) -> None:
 
     assert client.delete(f"/api/estimates/{estimate['id']}").status_code == 204
     assert client.get(f"/api/estimates/{estimate['id']}").status_code == 404
+
+
+def test_email_falls_back_to_outbox(client: TestClient, tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(settings, "outbox_dir", str(tmp_path))
+    estimate = client.post("/api/estimates", json=_payload(client)).json()
+
+    response = client.post(
+        f"/api/estimates/{estimate['id']}/send-email",
+        json={"to": "client@example.com", "message": "Проверка отправки"},
+    )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["status"] == "outbox"
+    assert "SMTP" in payload["detail"]
+
+    files = list(tmp_path.glob("*.eml"))
+    assert len(files) == 1
+    raw = files[0].read_bytes()
+    assert b"application/pdf" in raw
+    assert b"client@example.com" in raw
+    assert len(raw) > 10_000
+
+
+def test_email_rejects_invalid_address(client: TestClient) -> None:
+    estimate = client.post("/api/estimates", json=_payload(client)).json()
+
+    response = client.post(
+        f"/api/estimates/{estimate['id']}/send-email",
+        json={"to": "not-an-email"},
+    )
+
+    assert response.status_code == 422
+
+
+def test_cannot_email_foreign_estimate(client: TestClient, technologist_client: TestClient) -> None:
+    foreign = technologist_client.post("/api/estimates", json=_payload(technologist_client)).json()
+
+    response = client.post(
+        f"/api/estimates/{foreign['id']}/send-email",
+        json={"to": "client@example.com"},
+    )
+
+    assert response.status_code == 403
+
+
+def test_csv_export_contains_estimate(client: TestClient) -> None:
+    estimate = client.post(
+        "/api/estimates", json=_payload(client, contractor_name="ИП Экспорт")
+    ).json()
+
+    response = client.get("/api/estimates/export.csv")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/csv")
+    text = response.content.decode("utf-8-sig")
+    assert text.startswith("Номер;Дата;")
+    assert "ИП Экспорт" in text
+    assert estimate["number"] in text
+    assert "Итого;За единицу" in text
+
+
+def test_csv_export_respects_manager_scope(
+    client: TestClient, technologist_client: TestClient
+) -> None:
+    foreign = technologist_client.post("/api/estimates", json=_payload(technologist_client)).json()
+
+    text = client.get("/api/estimates/export.csv").content.decode("utf-8-sig")
+
+    assert foreign["number"] not in text
+
+
+def test_estimate_exposes_contractor_email(client: TestClient) -> None:
+    contractor = next(
+        item for item in _dictionaries(client)["contractors"] if item["contact_email"]
+    )
+
+    estimate = client.post(
+        "/api/estimates",
+        json=_payload(client, contractor_id=contractor["id"], contractor_name=None),
+    ).json()
+
+    assert estimate["contractor_email"] == contractor["contact_email"]
 
 
 def test_technologist_can_update_settings(technologist_client: TestClient) -> None:

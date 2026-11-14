@@ -408,6 +408,10 @@ code {
   gap: 8px;
 }
 
+.actions--top {
+  margin-top: 14px;
+}
+
 /* --- сообщения --- */
 
 .alert {
@@ -445,6 +449,12 @@ code {
 
 .hint--pad {
   padding: 18px;
+}
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  padding: 16px;
 }
 
 .muted {

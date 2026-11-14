@@ -178,6 +178,10 @@ class Estimate(Base):
     def author_name(self) -> str | None:
         return self.author.full_name if self.author else None
 
+    @property
+    def contractor_email(self) -> str | None:
+        return self.contractor.contact_email if self.contractor else None
+
     author: Mapped[User] = relationship(back_populates="estimates")
     contractor: Mapped[Contractor | None] = relationship(back_populates="estimates")
     parts: Mapped[list["EstimatePart"]] = relationship(

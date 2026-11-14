@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, pdfUrl, type Estimate } from '../api'
+import { DRAFT_KEY } from '../draft'
 import { dateTime, money, number, percent } from '../format'
 
 export function EstimatePage() {
@@ -10,6 +11,13 @@ export function EstimatePage() {
   const [error, setError] = useState<string | null>(null)
   const [shareUrl, setShareUrl] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [email, setEmail] = useState('')
+  const [emailComment, setEmailComment] = useState('')
+  const [sending, setSending] = useState(false)
+  const [emailResult, setEmailResult] = useState<{ status: 'sent' | 'outbox'; detail: string } | null>(
+    null,
+  )
+  const [emailError, setEmailError] = useState<string | null>(null)
 
   useEffect(() => {
     const numericId = Number(id)
@@ -19,7 +27,10 @@ export function EstimatePage() {
     }
     api
       .getEstimate(numericId)
-      .then(setEstimate)
+      .then((data) => {
+        setEstimate(data)
+        setEmail(data.contractor_email ?? '')
+      })
       .catch((err: Error) => setError(err.message))
   }, [id])
 
@@ -46,6 +57,61 @@ export function EstimatePage() {
     } catch (err) {
       setError((err as Error).message)
     }
+  }
+
+  async function handleSendEmail() {
+    if (!estimate || !email.trim()) return
+    setSending(true)
+    setEmailResult(null)
+    setEmailError(null)
+    try {
+      const result = await api.sendEmail(estimate.id, {
+        to: email.trim(),
+        message: emailComment.trim() || null,
+      })
+      setEmailResult(result)
+    } catch (err) {
+      setEmailError((err as Error).message)
+    } finally {
+      setSending(false)
+    }
+  }
+
+  function handleRepeat() {
+    if (!estimate) return
+    const draft = {
+      productTypeId: String(estimate.product_type_id),
+      complexityId: String(estimate.complexity_id),
+      quantity: String(estimate.quantity),
+      hasLining: estimate.has_lining,
+      hasHood: estimate.has_hood,
+      hasPockets: estimate.has_pockets,
+      fabricId: estimate.fabric_id ? String(estimate.fabric_id) : '',
+      fabricWidth: String(estimate.fabric_width_cm),
+      fabricPrice: String(estimate.fabric_price_per_m),
+      waste: String(Math.round(estimate.waste_coefficient * 1000) / 10),
+      seam: String(estimate.seam_allowance_cm),
+      parts: estimate.parts.map((part) => ({
+        name: part.name,
+        length: String(part.length_cm),
+        width: String(part.width_cm),
+        count: String(part.count_per_unit),
+      })),
+      hardwareQty: Object.fromEntries(
+        estimate.hardware_items
+          .filter((item) => item.hardware_id !== null)
+          .map((item) => [String(item.hardware_id), String(item.qty_per_unit)]),
+      ),
+      brandingPos: Object.fromEntries(
+        estimate.branding_items
+          .filter((item) => item.branding_id !== null)
+          .map((item) => [String(item.branding_id), String(item.positions)]),
+      ),
+      contractorName: estimate.contractor_name ?? '',
+      notes: estimate.notes ?? '',
+    }
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft))
+    navigate('/')
   }
 
   if (error) {
@@ -98,6 +164,9 @@ export function EstimatePage() {
           <a className="button" href={pdfUrl(estimate.id)} target="_blank" rel="noreferrer">
             Скачать PDF
           </a>
+          <button type="button" className="button button--ghost" onClick={handleRepeat}>
+            Повторить расчёт
+          </button>
           <button type="button" className="button button--ghost" onClick={handleShare}>
             {copied ? 'Ссылка скопирована' : 'Ссылка для подрядчика'}
           </button>
@@ -198,6 +267,49 @@ export function EstimatePage() {
             </tr>
           </tbody>
         </table>
+      </section>
+
+      <section className="card">
+        <h2 className="h3">Отправить КП на email</h2>
+        <div className="grid grid--2">
+          <label className="field">
+            <span>Email получателя</span>
+            <input
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="client@example.com"
+            />
+          </label>
+          <label className="field">
+            <span>Комментарий в письме</span>
+            <input
+              value={emailComment}
+              onChange={(event) => setEmailComment(event.target.value)}
+              placeholder="Необязательно"
+            />
+          </label>
+        </div>
+        <div className="actions actions--top">
+          <button
+            type="button"
+            className="button"
+            onClick={handleSendEmail}
+            disabled={sending || !email.trim()}
+          >
+            {sending ? 'Отправляем…' : 'Отправить PDF на email'}
+          </button>
+        </div>
+        {emailError && (
+          <p className="alert" role="alert">
+            {emailError}
+          </p>
+        )}
+        {emailResult && (
+          <p className={emailResult.status === 'sent' ? 'notice notice--ok' : 'notice'}>
+            {emailResult.detail}
+          </p>
+        )}
       </section>
 
       <section className="card">

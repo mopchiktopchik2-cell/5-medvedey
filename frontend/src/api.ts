@@ -208,7 +208,11 @@ export type Estimate = {
   created_at: string
   author_id: number
   author_name: string | null
+  product_type_id: number
+  complexity_id: number
+  fabric_id: number | null
   contractor_name: string | null
+  contractor_email: string | null
   product_type_name: string
   complexity_name: string
   complexity_factor: number
@@ -272,6 +276,11 @@ export const api = {
   deleteEstimate: (id: number) => request<void>(`/estimates/${id}`, { method: 'DELETE' }),
   shareEstimate: (id: number) =>
     request<{ token: string; path: string }>(`/estimates/${id}/share`, { method: 'POST' }),
+  sendEmail: (id: number, payload: { to: string; message?: string | null }) =>
+    request<{ status: 'sent' | 'outbox'; detail: string; to: string }>(
+      `/estimates/${id}/send-email`,
+      { method: 'POST', body: JSON.stringify(payload) },
+    ),
   getSharedEstimate: (token: string) => request<Estimate>(`/public/estimates/${token}`),
 
   createContractor: (payload: { name: string; contact_email?: string | null; phone?: string | null }) =>
@@ -336,3 +345,12 @@ export const api = {
 
 export const pdfUrl = (id: number) => `${API_URL}/estimates/${id}/pdf`
 export const sharedPdfUrl = (token: string) => `${API_URL}/public/estimates/${token}/pdf`
+
+export function exportCsvUrl(params: Record<string, string | number | undefined> = {}): string {
+  const search = new URLSearchParams()
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== '') search.set(key, String(value))
+  })
+  const query = search.toString()
+  return `${API_URL}/estimates/export.csv${query ? `?${query}` : ''}`
+}
