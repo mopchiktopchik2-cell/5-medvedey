@@ -104,6 +104,8 @@ python -m app.cli create-user --email boss@example.ru --name "Иванов И. �
 start-site.cmd         запуск сайта двойным щелчком (Docker + браузер)
 start-site-offline.cmd запуск без сборки — из заранее загруженных образов
 stop-site.cmd          остановка стенда, данные сохраняются
+start-site.sh          запуск стенда на Linux / ARM (аналог start-site.cmd)
+stop-site.sh            остановка стенда на Linux
 backend/
   app/
     calculators.py     чистые функции: раскладка, пошив, смета, сроки
@@ -142,6 +144,8 @@ scripts/
   start-mir.ps1        запуск «одним ярлыком»: Docker + LAN-стенд + браузер
   start-lan.ps1        запуск в Docker для внутренней сети (порт 8080)
   stop-lan.ps1         остановка LAN-стенда
+  start-site.sh        запуск стенда на Linux / ARM
+  stop-site.sh         остановка стенда на Linux
   export-images.ps1    сохранить готовые образы в tar (перенос без Docker Hub)
   import-images.ps1    загрузить образы из tar
   download-images.ps1  скачать готовые образы amd64/arm64 с GitHub Releases
@@ -245,6 +249,26 @@ docker compose exec backend python -m app.cli create-user --email boss@example.r
 - при первом запуске скачивает готовые образы с GitHub (amd64/arm64), иначе собирает их;
 - поднимает контейнеры и ждёт ответа `/api/health`;
 - открывает сайт в браузере.
+
+### Запуск на Linux / ARM
+
+На Linux-машине (в т.ч. ARM) запуск полностью аналогичный:
+
+```bash
+git clone https://github.com/mopchiktopchik2-cell/5-medvedey.git
+cd 5-medvedey
+sudo ./start-site.sh
+```
+
+Скрипт сам установит Docker (через get.docker.com), при необходимости скачает готовые образы (amd64/arm64) с GitHub Releases, создаст `.env` и поднимет стенд. Остановка: `./stop-site.sh`.
+
+Если Docker уже установлен — просто:
+
+```bash
+./start-site.sh
+```
+
+Если Docker не установлен и установка не удалась — ставьте Docker Desktop/Engine вручную, см. раздел «Если Docker Hub недоступен».
 
 Если Docker не установлен или не запустился, окно не закроется и покажет, что делать. При переносе папки проекта на другой компьютер ярлыки нужно создать заново. Если Docker не установлен, скрипт пытается установить его через winget (`winget install --id Docker.DockerDesktop --source winget --accept-package-agreements --accept-source-agreements`); если winget недоступен — предлагает установить Docker Desktop вручную.
 
