@@ -37,6 +37,7 @@ obj/
 build/
 
 # --- данные и артефакты ---
+backend/data/
 *.db
 *.sqlite
 *.sqlite3
