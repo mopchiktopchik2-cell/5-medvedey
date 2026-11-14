@@ -1,0 +1,53 @@
+# --- секреты и локальная конфигурация ---
+.env
+.env.*
+!.env.example
+*.local
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# --- Node.js ---
+node_modules/
+dist/
+build/
+.next/
+.vite/
+coverage/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- .NET ---
+bin/
+obj/
+*.user
+
+# --- Flutter / Dart ---
+.dart_tool/
+.packages
+build/
+
+# --- данные и артефакты ---
+*.db
+*.sqlite
+*.sqlite3
+*.log
+uploads/
+
+# --- IDE / ОС ---
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
