@@ -15,6 +15,10 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
+try {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+} catch {
+}
 
 $root = Split-Path -Parent $PSScriptRoot
 $releaseBase = 'https://github.com/mopchiktopchik2-cell/5-medvedey/releases/download/images'
