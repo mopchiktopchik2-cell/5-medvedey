@@ -84,6 +84,22 @@ def main() -> int:
     assert "share_expires_at" in columns, columns
     print("4. старая база: колонка share_expires_at добавлена")
 
+    # 5. База без token_version: колонка добавляется миграцией.
+    engine.dispose()
+    conn = sqlite3.connect(legacy)
+    try:
+        conn.execute("DELETE FROM alembic_version")
+        conn.execute("ALTER TABLE users DROP COLUMN token_version")
+        conn.commit()
+    finally:
+        conn.close()
+    columns = {row[1] for row in query(legacy, "PRAGMA table_info(users)")}
+    assert "token_version" not in columns, columns
+    run_alembic(legacy, "upgrade", "head")
+    columns = {row[1] for row in query(legacy, "PRAGMA table_info(users)")}
+    assert "token_version" in columns, columns
+    print("5. старая база: колонка token_version добавлена")
+
     engine.dispose()
     for path in (fresh, legacy):
         path.unlink(missing_ok=True)

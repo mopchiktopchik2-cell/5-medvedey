@@ -1,0 +1,42 @@
+# Боевой контур с автоматическим HTTPS: Caddy + Let's Encrypt.
+#
+#   DOMAIN=mir.example.ru в .env (и CORS_ORIGINS=https://mir.example.ru)
+#   docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d --build
+#
+# Наружу открыты только 80 и 443. Порты frontend (5173) и backend (8000)
+# больше не публикуются: доступ к ним есть только внутри docker-сети.
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:?Задайте DOMAIN в .env, например DOMAIN=mir.example.ru}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      frontend:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  frontend:
+    # !override убирает публикацию 5173: сайт доступен только через Caddy.
+    ports: !override []
+
+  backend:
+    # Наружу торчит только Caddy; API доступен через него по /api/.
+    ports: !override []
+
+volumes:
+  caddy-data:
+  caddy-config:

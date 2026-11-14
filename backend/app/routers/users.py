@@ -92,6 +92,9 @@ def update_user(
         user.is_active = changes["is_active"]
     if "password" in changes:
         user.password_hash = hash_password(changes["password"])
+    if {"role", "is_active", "password"} & changes.keys():
+        # Роль и пароль вшиты в токен: старые сессии должны закончиться.
+        user.token_version += 1
 
     session.commit()
     session.refresh(user)

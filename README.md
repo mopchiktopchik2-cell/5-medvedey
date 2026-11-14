@@ -26,10 +26,10 @@
 - **КП в PDF** — реквизиты цеха, таблица расчёта, итоги, подпись; кириллица в шрифте PT Sans.
 - **Логотип цеха** — технолог загружает PNG/JPEG/WebP, логотип выводится в шапке PDF и на публичной странице.
 - **История расчётов** — поиск по номеру/изделию/подрядчику, фильтры по дате и типу изделия, экспорт в CSV, подгрузка страницами.
-- **Справочники технолога** — ткани, фурнитура, брендирование, изделия, коэффициенты, нормо-часы.
+- **Справочники технолога** — ткани, фурнитура, брендирование, изделия, коэффициенты, нормо-часы. Загрузка прайса из CSV: шаблон, UTF-8/Windows-1251, частичный импорт с отчётом об ошибках.
 - **Профили подрядчиков** — название, email для КП и телефон; подрядчик сохраняется в истории расчётов, email подставляется в отправку.
 - **Роли** — менеджер видит только свои расчёты, технолог — все и правит справочники.
-- **Сотрудники и пароли** — технолог заводит сотрудников, отключает уволенных и сбрасывает забытые пароли; каждый сотрудник меняет свой пароль сам.
+- **Сотрудники и пароли** — технолог заводит сотрудников, отключает уволенных и сбрасывает забытые пароли; каждый сотрудник меняет свой пароль сам. Смена или сброс пароля, а также смена роли завершают все сессии сотрудника на всех устройствах.
 - **Ссылка для подрядчика** — публичный просмотр сметы и скачивание PDF без входа. Ссылка живёт 30 дней (настраивается) и в любой момент отзывается; во внешнем ответе нет email и ФИО сотрудника, нормо-часов и цены погонного метра.
 - **Защита от перебора пароля** — после нескольких неудачных попыток вход с этого адреса временно блокируется.
 - **Отправка КП на email** — PDF вложением через SMTP; без SMTP письмо сохраняется в `outbox` как `.eml`.
@@ -89,8 +89,8 @@ python -m app.cli create-user --email boss@example.ru --name "Иванов И. �
 ## Стек
 
 - **Backend:** Python 3.11, FastAPI, SQLAlchemy 2.0, SQLite (по умолчанию) / PostgreSQL, JWT в httpOnly cookie, argon2-хеши, fpdf2 для PDF, Alembic для миграций.
-- **Frontend:** React 19, TypeScript, Vite, React Router, oxlint, vitest.
-- **Инфраструктура:** Docker Compose, GitHub Actions (ruff, pytest, проверка миграций, oxlint, vitest, сборка).
+- **Frontend:** React 19, TypeScript, Vite, React Router, oxlint, vitest, Playwright (сквозной E2E).
+- **Инфраструктура:** Docker Compose, Caddy (HTTPS), GitHub Actions (ruff, pytest, проверка миграций, oxlint, vitest, сборка).
 
 ## Интерфейс
 
@@ -119,9 +119,9 @@ backend/
   migrations/          Alembic: baseline-миграция и окружение
   alembic.ini
   entrypoint.sh        миграции + запуск uvicorn в контейнере
-  tests/               62 теста: формулы, API, права, PDF, email, CSV, логотип,
+  tests/               75 тестов: формулы, API, права, PDF, email, CSV, логотип,
                        подрядчики, сотрудники, публичные ссылки, rate-limit,
-                       справочники и идемпотентность сида
+                       справочники, отзыв сессий и идемпотентность сида
 frontend/
   public/fonts/        self-hosted шрифты интерфейса (OFL / Apache 2.0)
   src/
@@ -138,11 +138,14 @@ scripts/
   dev.ps1              запуск бэкенда и фронтенда
   start-lan.ps1        запуск в Docker для внутренней сети (порт 8080)
   stop-lan.ps1         остановка LAN-стенда
+  backup.ps1           резервная копия базы, логотипа и outbox
+  restore.ps1          восстановление из архива
   check_migrations.py  проверка сценариев миграций
 docs/
   manager-guide.md     инструкция менеджера
   technologist-guide.md инструкция технолога
   demo-script.md       сценарий показа на 5–6 минут
+  video-storyboard.md  раскадровка видео-гайда на 2–3 минуты
   acceptance.md        приёмка: пять результатов и чек-лист
   requirements-checklist.md  матрица соответствия ТЗ
   idea.md              описание кейса
@@ -226,16 +229,48 @@ New-NetFirewallRule -DisplayName "5-medvedey LAN" -Direction Inbound -LocalPort 
 
 Без Docker, в режиме разработки, наружу можно выйти так: `uvicorn app.main:app --host 0.0.0.0` и `npm run dev -- --host`, затем открыть `http://<IP>:5173`.
 
+## Резервное копирование
+
+```powershell
+.\scripts\backup.ps1                  # архив в backups\
+.\scripts\backup.ps1 -OutDir D:\bkp   # в другую папку
+.\scripts\restore.ps1 -Archive .\backups\5-medvedey-20261114-203556.zip
+```
+
+`backup.ps1` сам определяет режим:
+
+- **PostgreSQL в Docker** — `pg_dump`;
+- **SQLite в Docker** — согласованный снимок через `sqlite3 backup`, сервис останавливать не нужно;
+- **локальный запуск** — снимок `backend/data/app.db`.
+
+В архив попадают база, `uploads/` (логотип) и `outbox/` (письма без SMTP), а также `manifest.txt` с режимом и коммитом. Восстановление останавливает backend, подменяет базу и запускает его снова; текущая база сохраняется рядом как `app.db.before-restore-<дата>`.
+
+Копии делайте по расписанию и храните хотя бы одну вне сервера. На Linux те же действия доступны без PowerShell:
+
+```bash
+# SQLite
+docker compose exec -T backend python -c "import sqlite3; s=sqlite3.connect('/app/data/app.db'); d=sqlite3.connect('/app/data/backup.db'); s.backup(d); d.close(); s.close()"
+docker compose cp backend:/app/data/backup.db ./backup.db
+
+# PostgreSQL
+docker compose -f docker-compose.yml -f docker-compose.postgres.yml exec -T db pg_dump -U mir -d mir > backup.sql
+```
+
 ## Развёртывание на хостинге в РФ
 
 Сервис хранит базу, PDF и загруженный логотип только на вашем сервере и не обращается к внешним облачным API. Подойдёт VPS в российском дата-центре: Timeweb Cloud, Selectel, Yandex Cloud или аналогичный.
 
 1. Создайте сервер с Docker и Docker Compose, направьте домен на его IP.
-2. Задайте переменные окружения: `APP_ENV=production`, стойкий `SECRET_KEY` (без него приложение не стартует), `POSTGRES_PASSWORD`, `CORS_ORIGINS=https://ваш-домен`, `SEED_DEMO_DATA=false`.
-3. Запустите PostgreSQL-вариант: `docker compose -f docker-compose.yml -f docker-compose.postgres.yml up -d --build`.
+2. Задайте переменные окружения: `DOMAIN=mir.example.ru`, `APP_ENV=production`, стойкий `SECRET_KEY` (без него приложение не стартует), `POSTGRES_PASSWORD`, `CORS_ORIGINS=https://mir.example.ru`, `SEED_DEMO_DATA=false`.
+3. Запустите PostgreSQL-вариант с автоматическим HTTPS:
+
+   ```powershell
+   docker compose -f docker-compose.yml -f docker-compose.postgres.yml -f docker-compose.caddy.yml up -d --build
+   ```
+
 4. Создайте первого технолога: `docker compose exec backend python -m app.cli create-user --email boss@example.ru --name "Иванов И. И."`.
-5. Поставьте перед контейнерами reverse proxy с TLS (nginx или Caddy) и проксируйте `https://ваш-домен` на `frontend:80`.
-6. Настройте резервное копирование томов `backend-data` (SQLite, логотип, outbox) и `pg-data` (PostgreSQL) и мониторинг доступности `/api/health`.
+5. Caddy из `docker-compose.caddy.yml` сам получит сертификат Let's Encrypt и будет проксировать `https://ваш-домен` на `frontend:80`. Наружу открыты только 80 и 443; порты frontend и backend не публикуются. Заголовки безопасности и CSP заданы в `Caddyfile`.
+6. Настройте резервное копирование (`.\scripts\backup.ps1` по планировщику или `pg_dump` в cron) и мониторинг доступности `/api/health`.
 
 Схема базы обновляется миграциями Alembic при старте контейнера. Откат baseline-миграции на базе с данными запрещён намеренно — чтобы случайно не удалить справочники и историю расчётов.
 
@@ -318,16 +353,26 @@ npm test
 npm run build
 ```
 
-`check_migrations.py` проверяет четыре сценария: чистая база, повторный `upgrade`, база от старого `create_all` и база без новой колонки `share_expires_at`.
+`check_migrations.py` проверяет пять сценариев: чистая база, повторный `upgrade`, база от старого `create_all`, база без `share_expires_at` и база без `token_version`.
 
 Те же проверки выполняются в GitHub Actions (`.github/workflows/ci.yml`).
+
+Сквозной сценарий (вход → смета → история → PDF → импорт CSV) проверяется в настоящем браузере:
+
+```powershell
+.\scripts\start-lan.ps1   # стенд на http://localhost:8080
+cd frontend
+npm run test:e2e
+```
+
+E2E использует установленный Microsoft Edge (канал `msedge`) и не требует скачивания браузеров. В CI он не запускается: там нет Docker-стенда, поэтому сквозная проверка выполняется локально перед показом.
 
 ## Ограничения и планы
 
 - Раскладка кроя — эвристика «полками» с поворотом деталей, а не полноценный оптимизатор вложенности. Для укрупнённого экспресс-расчёта этого достаточно; точный расклад даёт САПР.
 - Если SMTP не настроен, письмо с КП не отправляется, а сохраняется в `data/outbox/*.eml` — файл можно открыть почтовым клиентом. Это осознанный демо-фолбэк, а не ошибка. Реальная отправка через SMTP требует рабочих учётных данных и в CI не проверяется.
 - Счётчик неудачных входов хранится в памяти процесса: при нескольких воркерах uvicorn лимит действует на каждый процесс отдельно. Для одного контейнера этого достаточно; при масштабировании лимит лучше вынести на reverse proxy или в Redis.
-- После смены пароля закрывается только текущая сессия: выданные ранее JWT доживают до истечения срока (12 часов). Для мгновенного отзыва всех сессий нужна версия токена в базе.
+- Смена пароля, сброс пароля технологом и смена роли увеличивают `users.token_version` и отзывают все ранее выданные JWT. Просто истёкшие сессии доживают до конца срока (12 часов) — отдельного «выйти на всех устройствах» без смены пароля нет.
 - SQLite оставлен вариантом по умолчанию для локальной демонстрации. Для рабочего контура используйте PostgreSQL-оверрайд: он проверен и описан выше.
 - Автотесты фронтенда покрывают форматтеры (`format.test.ts`), а не сквозные сценарии в браузере. Полный сценарий «ввод → расчёт → КП» проверялся вручную.
 

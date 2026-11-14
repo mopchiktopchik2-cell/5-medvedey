@@ -10,9 +10,10 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const isFormData = typeof FormData !== 'undefined' && init?.body instanceof FormData
   const response = await fetch(`${API_URL}${path}`, {
     credentials: 'include',
-    headers: init?.body ? { 'Content-Type': 'application/json' } : undefined,
+    headers: !isFormData && init?.body ? { 'Content-Type': 'application/json' } : undefined,
     ...init,
   })
 
@@ -91,12 +92,21 @@ export type Contractor = {
   phone: string | null
 }
 
+export type ImportKind = 'fabrics' | 'hardware' | 'branding' | 'product-types' | 'complexity'
+
+export type ImportResult = {
+  created: number
+  updated: number
+  errors: string[]
+}
+
 export type LogoMeta = {
   has_logo: boolean
   updated_at: string | null
 }
 
-export type Settings = {  sewing_normohour: number
+export type Settings = {
+  sewing_normohour: number
   cutting_normohour: number
   waste_coefficient: number
   cutting_rate_parts_per_hour: number
@@ -426,6 +436,11 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(payload),
     }),
+  importDictionary: (kind: ImportKind, file: File) => {
+    const body = new FormData()
+    body.append('file', file)
+    return request<ImportResult>(`/dictionaries/import/${kind}`, { method: 'POST', body })
+  },
 }
 
 export const pdfUrl = (id: number) => `${API_URL}/estimates/${id}/pdf`
@@ -436,6 +451,9 @@ export function logoUrl(version?: string | number): string {
   const stamp = typeof version === 'number' ? version : new Date(version).getTime()
   return `${API_URL}/public/logo?v=${Number.isFinite(stamp) ? stamp : Date.now()}`
 }
+
+export const importTemplateUrl = (kind: ImportKind) =>
+  `${API_URL}/dictionaries/import/${kind}/template.csv`
 
 export function exportCsvUrl(params: Record<string, string | number | undefined> = {}): string {
   const search = new URLSearchParams()

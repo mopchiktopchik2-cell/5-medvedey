@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { api, logoUrl, type Dictionaries, type LogoMeta } from '../api'
+import {
+  api,
+  importTemplateUrl,
+  logoUrl,
+  type Dictionaries,
+  type ImportKind,
+  type LogoMeta,
+} from '../api'
 import { UsersCard } from '../components/UsersCard'
 import { number } from '../format'
 
@@ -20,17 +27,22 @@ function EntityTable({
   blank,
   addLabel,
   onSave,
+  importKind,
+  onImported,
 }: {
   fields: FieldDef[]
   items: RowItem[]
   blank: Record<string, string>
   addLabel: string
   onSave: SaveHandler
+  importKind?: ImportKind
+  onImported?: () => void | Promise<void>
 }) {
   const [rows, setRows] = useState<RowItem[]>(items)
   const [draft, setDraft] = useState<Record<string, string>>(blank)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [importMessage, setImportMessage] = useState<string | null>(null)
 
   useEffect(() => {
     setRows(items)
@@ -52,6 +64,25 @@ function EntityTable({
     try {
       await onSave(values, id)
       if (!id) setDraft(blank)
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function importCsv(file: File) {
+    if (!importKind) return
+    setBusy('import')
+    setError(null)
+    setImportMessage(null)
+    try {
+      const result = await api.importDictionary(importKind, file)
+      const parts = [`Создано: ${result.created}`, `обновлено: ${result.updated}`]
+      if (result.errors.length) parts.push(`строк с ошибками: ${result.errors.length}`)
+      setImportMessage(parts.join(', '))
+      if (result.errors.length) setError(result.errors.slice(0, 5).join('\n'))
+      await onImported?.()
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -89,6 +120,27 @@ function EntityTable({
 
   return (
     <div className="stack">
+      {importKind && (
+        <div className="actions actions--tight">
+          <label className="button button--ghost button--small">
+            {busy === 'import' ? 'Импортируем…' : 'Импорт из CSV'}
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              style={{ display: 'none' }}
+              onChange={(event) => {
+                const file = event.target.files?.[0]
+                if (file) void importCsv(file)
+                event.target.value = ''
+              }}
+            />
+          </label>
+          <a className="button button--ghost button--small" href={importTemplateUrl(importKind)}>
+            Скачать шаблон
+          </a>
+        </div>
+      )}
+      {importMessage && <p className="hint">{importMessage}</p>}
       {error && <p className="alert" role="alert">{error}</p>}
 
       <table className="table table--compact">
@@ -475,6 +527,8 @@ export function DictionariesPage() {
               items={fabricRows}
               blank={FABRIC_BLANK}
               addLabel="Добавить ткань"
+              importKind="fabrics"
+              onImported={reload}
               onSave={async (values, id) => {
                 await api.saveFabric({
                   id,
@@ -495,6 +549,8 @@ export function DictionariesPage() {
               items={hardwareRows}
               blank={HARDWARE_BLANK}
               addLabel="Добавить фурнитуру"
+              importKind="hardware"
+              onImported={reload}
               onSave={async (values, id) => {
                 await api.saveHardware({
                   id,
@@ -514,6 +570,8 @@ export function DictionariesPage() {
               items={brandingRows}
               blank={BRANDING_BLANK}
               addLabel="Добавить брендирование"
+              importKind="branding"
+              onImported={reload}
               onSave={async (values, id) => {
                 await api.saveBranding({
                   id,
@@ -532,6 +590,8 @@ export function DictionariesPage() {
               items={productRows}
               blank={PRODUCT_BLANK}
               addLabel="Добавить изделие"
+              importKind="product-types"
+              onImported={reload}
               onSave={async (values, id) => {
                 await api.saveProductType({
                   id,
@@ -550,6 +610,8 @@ export function DictionariesPage() {
               items={complexityRows}
               blank={COMPLEXITY_BLANK}
               addLabel="Добавить уровень"
+              importKind="complexity"
+              onImported={reload}
               onSave={async (values, id) => {
                 await api.saveComplexity({
                   id,

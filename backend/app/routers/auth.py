@@ -73,6 +73,7 @@ def change_password(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Новый пароль совпадает с текущим")
 
     user.password_hash = hash_password(payload.new_password)
+    user.token_version += 1
     session.commit()
-    # После смены пароля текущая сессия закрывается — нужно войти заново.
+    # После смены пароля закрываются все сессии сотрудника — нужно войти заново.
     clear_auth_cookie(response)

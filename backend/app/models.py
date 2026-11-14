@@ -40,6 +40,10 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255))
     role: Mapped[str] = mapped_column(String(20), default=UserRole.MANAGER)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Растёт при смене пароля или роли: старые JWT перестают приниматься.
+    token_version: Mapped[int] = mapped_column(
+        Integer, default=1, server_default="1", nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     estimates: Mapped[list["Estimate"]] = relationship(back_populates="author")

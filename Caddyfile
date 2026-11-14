@@ -1,0 +1,25 @@
+# Боевой контур: Caddy принимает HTTPS и проксирует запросы в frontend (nginx).
+# Домен задаётся в .env, например DOMAIN=mir.example.ru.
+# Сертификат Let's Encrypt Caddy получает и продлевает сам.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d --build
+
+{$DOMAIN:localhost} {
+	encode zstd gzip
+
+	header {
+		# Базовые заголовки безопасности. Скрипты — только свои, стили
+		# допускают inline-атрибуты (их использует React для прогресса).
+		Content-Security-Policy "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+
+	# Если перед Caddy стоит ещё один прокси, раскомментируйте:
+	# trusted_proxies private_ranges
+
+	reverse_proxy frontend:80
+}

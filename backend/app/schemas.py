@@ -146,6 +146,12 @@ class SettingsRead(BaseModel):
     company_requisites: str
 
 
+class ImportResult(BaseModel):
+    created: int
+    updated: int
+    errors: list[str] = Field(default_factory=list)
+
+
 class SettingsUpdate(BaseModel):
     sewing_normohour: Decimal | None = Field(default=None, gt=0)
     cutting_normohour: Decimal | None = Field(default=None, gt=0)

@@ -26,7 +26,14 @@ def verify_password(password: str, hashed: str) -> bool:
 
 def create_access_token(user: User) -> str:
     expires_at = datetime.now(UTC) + timedelta(minutes=settings.access_token_ttl_minutes)
-    payload = {"sub": str(user.id), "role": user.role, "exp": expires_at}
+    payload = {
+        "sub": str(user.id),
+        "role": user.role,
+        # Версия токена: смена пароля или роли увеличивает её и отзывает
+        # все выданные ранее сессии сотрудника.
+        "ver": user.token_version,
+        "exp": expires_at,
+    }
     return jwt.encode(payload, settings.secret_key, algorithm=ALGORITHM)
 
 
@@ -65,6 +72,9 @@ def get_current_user(
 
     user = session.get(User, user_id)
     if user is None or not user.is_active:
+        raise credentials_error
+    if int(payload.get("ver", 1)) != user.token_version:
+        # Пароль или роль менялись после выдачи токена — сессия устарела.
         raise credentials_error
     return user
 

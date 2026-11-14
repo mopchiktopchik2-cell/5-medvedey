@@ -3,6 +3,7 @@
 Примеры:
     python -m app.cli create-user --email boss@example.ru --name "Иванов И. И."
     python -m app.cli reset-password --email manager@mir.ru
+    python -m app.cli clear-estimates --yes
 
 Пароль спрашивается интерактивно, если не передан через ``--password``.
 """
@@ -16,7 +17,7 @@ import sys
 from sqlalchemy import select
 
 from app.db import SessionLocal, init_db
-from app.models import User, UserRole
+from app.models import Estimate, User, UserRole
 from app.security import hash_password
 
 MIN_PASSWORD = 8
@@ -61,8 +62,26 @@ def reset_password(args: argparse.Namespace) -> int:
             print(f"Сотрудник {email} не найден", file=sys.stderr)
             return 1
         user.password_hash = hash_password(_read_password(args.password))
+        user.token_version += 1
         session.commit()
     print(f"Пароль для {email} обновлён")
+    return 0
+
+
+def clear_estimates(args: argparse.Namespace) -> int:
+    """Удаляет историю расчётов: удобно перед показом на чистой демо-базе."""
+    with SessionLocal() as session:
+        estimates = session.scalars(select(Estimate)).all()
+        if not args.yes:
+            print(
+                f"Будет удалено расчётов: {len(estimates)}. Повторите с --yes, если это осознанно.",
+                file=sys.stderr,
+            )
+            return 2
+        for estimate in estimates:
+            session.delete(estimate)
+        session.commit()
+    print(f"Удалено расчётов: {len(estimates)}")
     return 0
 
 
@@ -88,6 +107,13 @@ def build_parser() -> argparse.ArgumentParser:
     reset.add_argument("--email", required=True)
     reset.add_argument("--password", default=None, help="Если не указан — спросим интерактивно")
     reset.set_defaults(func=reset_password)
+
+    clear = subparsers.add_parser(
+        "clear-estimates",
+        help="Удалить все расчёты, сохранив справочники и сотрудников",
+    )
+    clear.add_argument("--yes", action="store_true", help="Подтверждение удаления")
+    clear.set_defaults(func=clear_estimates)
 
     return parser
 

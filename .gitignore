@@ -52,3 +52,10 @@ uploads/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# резервные копии
+backups/
+
+# Playwright
+frontend/test-results/
+frontend/playwright-report/

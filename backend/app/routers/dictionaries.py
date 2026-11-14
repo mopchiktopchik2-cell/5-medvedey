@@ -1,9 +1,10 @@
 from typing import Annotated, TypeVar
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import csv_import
 from app.db import get_session
 from app.models import Branding, ComplexityLevel, Contractor, Fabric, Hardware, ProductType
 from app.schemas import (
@@ -18,6 +19,7 @@ from app.schemas import (
     FabricRead,
     HardwareBase,
     HardwareRead,
+    ImportResult,
     ProductTypeBase,
     ProductTypeRead,
     SettingsRead,
@@ -54,6 +56,45 @@ def read_dictionaries(session: SessionDep, _: CurrentUser) -> DictionariesRead:
         complexity_levels=_active(session, ComplexityLevel),
         contractors=_active(session, Contractor),
         settings=get_settings_row(session),
+    )
+
+
+# --- импорт из CSV ---
+
+
+@router.post("/dictionaries/import/{kind}", response_model=ImportResult)
+async def import_dictionary(
+    kind: str,
+    file: UploadFile,
+    session: SessionDep,
+    _: Technologist,
+) -> ImportResult:
+    if kind not in csv_import.KINDS:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Неизвестный справочник")
+
+    data = await file.read(csv_import.MAX_BYTES + 1)
+    try:
+        items, errors = csv_import.parse(kind, data)
+    except csv_import.ImportError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+
+    if not items:
+        # Все строки с ошибками: показываем первую, чтобы было понятно, что чинить.
+        message = errors[0] if errors else "В файле нет строк с данными"
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, message)
+
+    created, updated = csv_import.apply_rows(session, kind, items)
+    return ImportResult(created=created, updated=updated, errors=errors)
+
+
+@router.get("/dictionaries/import/{kind}/template.csv")
+def download_template(kind: str) -> Response:
+    if kind not in csv_import.KINDS:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Неизвестный справочник")
+    return Response(
+        content=csv_import.template(kind),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="template-{kind}.csv"'},
     )
 
 
