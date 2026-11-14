@@ -81,7 +81,8 @@ try {
 if ($composeExit -ne 0) {
     Write-Host "Не удалось собрать и запустить контейнеры (код $composeExit)."
     Write-Host 'Если ошибка про registry-1.docker.io или TLS handshake timeout — Docker Hub недоступен.'
-    Write-Host 'Перенесите готовые образы с другого компьютера:'
+    Write-Host 'Почините доступ: .\scripts\fix-docker-access.ps1'
+    Write-Host 'Или перенесите готовые образы с другого компьютера:'
     Write-Host '  на рабочем компьютере: .\scripts\export-images.ps1'
     Write-Host '  здесь:                 .\scripts\import-images.ps1 -Archive <путь к tar>'
     Write-Host '  затем:                 .\scripts\start-lan.ps1 -NoBuild'

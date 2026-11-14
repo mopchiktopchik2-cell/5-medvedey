@@ -144,6 +144,7 @@ scripts/
   stop-lan.ps1         остановка LAN-стенда
   export-images.ps1    сохранить готовые образы в tar (перенос без Docker Hub)
   import-images.ps1    загрузить образы из tar
+  fix-docker-access.ps1 проверить доступ к Docker Hub и настроить зеркало
   create-shortcuts.ps1 ярлыки «М.и.Р. — сайт» и «М.и.Р. — остановить»
   backup.ps1           резервная копия базы, логотипа и outbox
   restore.ps1          восстановление из архива
@@ -249,13 +250,18 @@ docker compose exec backend python -m app.cli create-user --email boss@example.r
 
 Сборка может упасть с ошибкой `TLS handshake timeout` на `registry-1.docker.io` — это недоступность Docker Hub, а не ошибка проекта. Варианты по порядку:
 
-1. Включить VPN или прокси для Docker Desktop: **Settings → Resources → Proxies**.
-2. Добавить зеркало реестра: **Settings → Docker Engine**, в JSON добавить
+1. Запустить проверку и автонастройку:
+   ```powershell
+   .\scripts\fix-docker-access.ps1
+   ```
+   Скрипт проверит Docker Hub, при необходимости подберёт рабочее зеркало, добавит его в Docker Desktop (с резервной копией `daemon.json`) и перезапустит движок. Сайт на время перезапуска будет недоступен.
+2. Включить VPN или прокси для Docker Desktop: **Settings → Resources → Proxies**.
+3. Добавить зеркало реестра вручную: **Settings → Docker Engine**, в JSON добавить
    ```json
    "registry-mirrors": ["https://mirror.gcr.io"]
    ```
    затем **Apply & restart**. Публичные зеркала бывают нестабильны — если одно не отвечает, попробуйте другое.
-3. Перенести уже собранные образы с компьютера, где сервис работает:
+4. Перенести уже собранные образы с компьютера, где сервис работает:
    ```powershell
    .\scripts\export-images.ps1          # создаст dist\5-medvedey-images.tar
    ```
