@@ -38,10 +38,63 @@ function Find-DockerDesktop {
 Push-Location $root
 try {
     if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
-        Write-Host 'Docker не найден.'
-        Write-Host 'Установите Docker Desktop: https://www.docker.com/products/docker-desktop/'
-        Write-Host 'После установки запустите этот ярлык снова.'
-        exit 1
+        Write-Host 'Docker не найден — устанавливаю Docker Desktop через winget…'
+
+        $wingetExe = $null
+        $wingetCandidates = @(
+            (Get-Command winget -ErrorAction SilentlyContinue).Source,
+            (Join-Path $env:LOCALAPPDATA 'Microsoft\WindowsApps\winget.exe'),
+            'C:\Program Files\WindowsApps\winget.exe'
+        )
+        foreach ($candidate in $wingetCandidates) {
+            if ($candidate -and (Test-Path $candidate)) {
+                $wingetExe = $candidate
+                break
+            }
+        }
+
+        if (-not $wingetExe) {
+            Write-Host 'winget не найден. Установите Docker Desktop вручную:'
+            Write-Host '  https://www.docker.com/products/docker-desktop/'
+            Write-Host '  или: winget install --id Docker.DockerDesktop -e'
+            exit 1
+        }
+
+        Write-Host 'Устанавливаю Docker Desktop через winget (может занять несколько минут)…'
+        $wingetStartInfo = New-Object System.Diagnostics.ProcessStartInfo
+        $wingetStartInfo.FileName = $wingetExe
+        $wingetStartInfo.Arguments = '-install --id Docker.DockerDesktop --source winget --accept-package-agreements --accept-source-agreements'
+        $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+        $principal = New-Object Security.Principal.WindowsPrincipal($identity)
+        $wingetStartInfo.UseShellExecute = $true
+        if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+            $wingetStartInfo.Verb = 'runAs'
+        }
+        $wingetProcess = [System.Diagnostics.Process]::Start($wingetStartInfo)
+        $wingetProcess.WaitForExit()
+        if ($wingetProcess.ExitCode -ne 0) {
+            Write-Host "winget завершился с кодом $($wingetProcess.ExitCode). Установите Docker Desktop вручную: https://www.docker.com/products/docker-desktop/"
+            exit 1
+        }
+        Start-Sleep -Seconds 30
+
+        # Docker Desktop устанавливается в Program Files — подгружаем его в PATH текущего процесса.
+        $dockerExe = @(
+            (Get-Command docker -ErrorAction SilentlyContinue).Source,
+            'C:\Program Files\Docker\Docker\resources\bin\docker.exe',
+            'C:\Program Files\Docker\Docker\bin\docker.exe',
+            'C:\Program Files\Docker\docker.exe'
+        ) | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+        if (-not $dockerExe) {
+            Write-Host 'Docker Desktop установился, но docker.exe не найден в ожидаемых местах.'
+            Write-Host 'Откройте Docker Desktop и запустите этот ярлык снова.'
+            exit 1
+        }
+        $dockerBinDir = Split-Path -Parent $dockerExe
+        if ($dockerBinDir) {
+            [Environment]::SetEnvironmentVariable('Path', $env:Path + ';' + $dockerBinDir, 'Process')
+        }
+        Write-Host 'Docker Desktop установлен.'
     }
 
     if (-not (Test-DockerEngine)) {
