@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.db import SessionLocal, init_db
-from app.routers import auth, dictionaries, estimates, health
+from app.routers import auth, branding, dictionaries, estimates, health
 from app.seed import seed
 
 
@@ -32,5 +32,7 @@ app.add_middleware(
 app.include_router(health.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
 app.include_router(dictionaries.router, prefix="/api")
+app.include_router(branding.router, prefix="/api")
 app.include_router(estimates.router, prefix="/api")
 app.include_router(estimates.public_router, prefix="/api")
+app.include_router(branding.public_router, prefix="/api")

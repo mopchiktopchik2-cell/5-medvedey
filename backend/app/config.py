@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     # Куда складывать сгенерированные PDF, если SMTP не настроен
     outbox_dir: str = "./data/outbox"
 
+    # Загруженные файлы (логотип цеха для КП)
+    uploads_dir: str = "./data/uploads"
+
     # SMTP для отправки КП. Пока хост не задан, письма складываются в outbox.
     smtp_host: str | None = None
     smtp_port: int = 465

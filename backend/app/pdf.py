@@ -6,6 +6,7 @@ from pathlib import Path
 
 from fpdf import FPDF
 
+from app.branding import logo_path
 from app.models import Estimate, Settings
 
 FONT_DIR = Path(__file__).parent / "assets" / "fonts"
@@ -106,13 +107,19 @@ def build_estimate_pdf(estimate: Estimate, settings_row: Settings) -> bytes:
     pdf.add_page()
 
     # --- шапка ---
+    logo = logo_path()
+    header_width = CONTENT_WIDTH
+    if logo is not None:
+        header_width = CONTENT_WIDTH - 30
+        pdf.image(str(logo), x=PAGE_MARGIN + CONTENT_WIDTH - 26, y=15, w=26)
+
     pdf.set_font("PTSans", "B", 14)
-    pdf.cell(0, 8, settings_row.company_name, new_x="LMARGIN", new_y="NEXT")
+    pdf.multi_cell(header_width, 7, settings_row.company_name, new_x="LMARGIN", new_y="NEXT")
 
     pdf.set_font("PTSans", "", 8)
     pdf.set_text_color(*MUTED)
     pdf.multi_cell(
-        CONTENT_WIDTH, 4.5, settings_row.company_requisites, new_x="LMARGIN", new_y="NEXT"
+        header_width, 4.5, settings_row.company_requisites, new_x="LMARGIN", new_y="NEXT"
     )
     pdf.set_text_color(0, 0, 0)
     pdf.ln(2)

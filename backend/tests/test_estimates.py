@@ -1,4 +1,7 @@
+from io import BytesIO
+
 from fastapi.testclient import TestClient
+from PIL import Image
 
 from app.config import settings
 
@@ -133,6 +136,26 @@ def test_pdf_is_generated(client: TestClient) -> None:
     assert response.headers["content-type"] == "application/pdf"
     assert response.content.startswith(b"%PDF")
     assert len(response.content) > 5000
+    assert b"/Subtype /Image" not in response.content
+
+
+def test_pdf_includes_uploaded_logo(
+    client: TestClient, technologist_client: TestClient, monkeypatch, tmp_path
+) -> None:
+    monkeypatch.setattr(settings, "uploads_dir", str(tmp_path / "uploads"))
+    logo = BytesIO()
+    Image.new("RGB", (120, 40), (31, 78, 121)).save(logo, format="PNG")
+    upload = technologist_client.post(
+        "/api/dictionaries/logo",
+        files={"file": ("logo.png", logo.getvalue(), "image/png")},
+    )
+    assert upload.status_code == 200, upload.text
+
+    estimate = client.post("/api/estimates", json=_payload(client)).json()
+    response = client.get(f"/api/estimates/{estimate['id']}/pdf")
+
+    assert response.status_code == 200
+    assert b"/Subtype /Image" in response.content
 
 
 def test_share_link_is_public(client: TestClient, anon_client: TestClient) -> None:

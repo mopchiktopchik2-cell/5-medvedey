@@ -370,4 +370,9 @@ class EmailSendResult(BaseModel):
     to: EmailStr
 
 
+class LogoMeta(BaseModel):
+    has_logo: bool
+    updated_at: datetime | None = None
+
+
 DictionariesRead.model_rebuild()

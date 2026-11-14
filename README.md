@@ -10,6 +10,7 @@
 - **Калькулятор раскроя** — детали кроя с припусками, раскладка по ширине рулона, межлекальные отходы → метраж и стоимость материала + работа раскройщика.
 - **Сводная смета** — материал + раскрой + пошив + фурнитура + брендирование, себестоимость единицы, срок изготовления.
 - **КП в PDF** — реквизиты цеха, таблица расчёта, итоги, подпись; кириллица в шрифте PT Sans.
+- **Логотип цеха** — технолог загружает PNG/JPEG/WebP, логотип выводится в шапке PDF и на публичной странице.
 - **История расчётов** — поиск по номеру/изделию/подрядчику, фильтры по дате и типу изделия, экспорт в CSV, подгрузка страницами.
 - **Справочники технолога** — ткани, фурнитура, брендирование, изделия, коэффициенты, нормо-часы.
 - **Роли** — менеджер видит только свои расчёты, технолог — все и правит справочники.
@@ -76,11 +77,12 @@ backend/
     schemas.py         pydantic-контракты API
     security.py        JWT, роли, хеши
     pdf.py             генерация КП (PT Sans)
+    branding.py        логотип цеха: валидация, нормализация, хранение
     mailer.py          отправка КП по SMTP с фолбэком в outbox
     seed.py            справочники и демо-пользователи
     routers/           auth, dictionaries, estimates, health
     assets/fonts/      PT Sans Regular/Bold + лицензия OFL
-  tests/               34 теста: формулы, API, права, PDF, email, CSV
+  tests/               41 тест: формулы, API, права, PDF, email, CSV, логотип
 frontend/
   src/
     pages/             вход, калькулятор, история, КП, справочники, публичная смета
@@ -149,6 +151,7 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml up --build
 | `SMTP_STARTTLS` | `false` | поднять STARTTLS после подключения |
 | `SMTP_TIMEOUT_SECONDS` | `15` | таймаут соединения с SMTP |
 | `OUTBOX_DIR` | `./data/outbox` | куда складывать `.eml`, если SMTP не настроен |
+| `UPLOADS_DIR` | `./data/uploads` | хранение логотипа цеха |
 | `VITE_API_URL` | пусто → `/api` | адрес API для фронтенда |
 
 ## API
@@ -161,6 +164,8 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml up --build
 | GET | `/api/dictionaries` | авторизованные |
 | POST/PATCH | `/api/dictionaries/{fabrics,hardware,branding,product-types,complexity}` | технолог |
 | PATCH | `/api/dictionaries/settings` | технолог |
+| POST | `/api/dictionaries/logo` | технолог (multipart, PNG/JPEG/WebP ≤ 2 МБ) |
+| DELETE | `/api/dictionaries/logo` | технолог |
 | POST | `/api/estimates/preview` | авторизованные |
 | POST | `/api/estimates` | авторизованные |
 | GET | `/api/estimates` | авторизованные (менеджер — только свои) |
@@ -172,6 +177,8 @@ docker compose -f docker-compose.yml -f docker-compose.postgres.yml up --build
 | POST | `/api/estimates/{id}/send-email` | владелец или технолог |
 | GET | `/api/public/estimates/{token}` | без авторизации |
 | GET | `/api/public/estimates/{token}/pdf` | без авторизации |
+| GET | `/api/public/logo` | без авторизации |
+| GET | `/api/public/logo/meta` | без авторизации |
 
 ## Проверки
 
@@ -192,7 +199,6 @@ npm run build
 
 - Раскладка кроя — эвристика «полками» с поворотом деталей, а не полноценный оптимизатор вложенности. Для укрупнённого экспресс-расчёта этого достаточно; точный расклад даёт САПР.
 - Если SMTP не настроен, письмо с КП не отправляется, а сохраняется в `data/outbox/*.eml` — файл можно открыть почтовым клиентом. Это осознанный демо-фолбэк, а не ошибка.
-- Логотип цеха в PDF пока не выводится — используется текстовый блок с названием и реквизитами.
 - Схема БД создаётся автоматически (`create_all`); для продакшена стоит добавить Alembic.
 - Автотесты фронтенда отсутствуют: сквозной сценарий проверялся вручную через headless-браузер.
 

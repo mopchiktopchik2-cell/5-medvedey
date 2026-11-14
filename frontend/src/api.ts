@@ -86,8 +86,12 @@ export type Contractor = {
   phone: string | null
 }
 
-export type Settings = {
-  sewing_normohour: number
+export type LogoMeta = {
+  has_logo: boolean
+  updated_at: string | null
+}
+
+export type Settings = {  sewing_normohour: number
   cutting_normohour: number
   waste_coefficient: number
   cutting_rate_parts_per_hour: number
@@ -283,6 +287,25 @@ export const api = {
     ),
   getSharedEstimate: (token: string) => request<Estimate>(`/public/estimates/${token}`),
 
+  getLogoMeta: () => request<LogoMeta>('/public/logo/meta'),
+  uploadLogo: async (file: File) => {
+    const body = new FormData()
+    body.append('file', file)
+    const response = await fetch(`${API_URL}/dictionaries/logo`, {
+      method: 'POST',
+      credentials: 'include',
+      body,
+    })
+    if (!response.ok) {
+      const detail = await response.json().catch(() => null)
+      const message =
+        typeof detail?.detail === 'string' ? detail.detail : `Ошибка загрузки (${response.status})`
+      throw new ApiError(message, response.status)
+    }
+    return (await response.json()) as LogoMeta
+  },
+  deleteLogo: () => request<void>('/dictionaries/logo', { method: 'DELETE' }),
+
   createContractor: (payload: { name: string; contact_email?: string | null; phone?: string | null }) =>
     request<Contractor>('/contractors', { method: 'POST', body: JSON.stringify(payload) }),
 
@@ -345,6 +368,12 @@ export const api = {
 
 export const pdfUrl = (id: number) => `${API_URL}/estimates/${id}/pdf`
 export const sharedPdfUrl = (token: string) => `${API_URL}/public/estimates/${token}/pdf`
+
+export function logoUrl(version?: string | number): string {
+  if (!version) return `${API_URL}/public/logo`
+  const stamp = typeof version === 'number' ? version : new Date(version).getTime()
+  return `${API_URL}/public/logo?v=${Number.isFinite(stamp) ? stamp : Date.now()}`
+}
 
 export function exportCsvUrl(params: Record<string, string | number | undefined> = {}): string {
   const search = new URLSearchParams()

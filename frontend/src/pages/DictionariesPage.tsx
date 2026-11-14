@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { api, type Dictionaries } from '../api'
+import { api, logoUrl, type Dictionaries, type LogoMeta } from '../api'
 import { number } from '../format'
 
 type FieldDef = {
@@ -191,6 +191,98 @@ const HARDWARE_BLANK = { name: '', unit: 'piece', price: '0', is_active: 'true' 
 const BRANDING_BLANK = { name: '', price: '0', is_active: 'true' }
 const PRODUCT_BLANK = { name: '', base_sewing_hours: '0.6', is_active: 'true' }
 const COMPLEXITY_BLANK = { code: '', name: '', factor: '1.0' }
+
+function LogoCard() {
+  const [meta, setMeta] = useState<LogoMeta | null>(null)
+  const [version, setVersion] = useState(0)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    api.getLogoMeta().then(setMeta).catch(() => undefined)
+  }, [])
+
+  async function upload(file: File | undefined) {
+    if (!file) return
+    setBusy(true)
+    setError(null)
+    try {
+      const next = await api.uploadLogo(file)
+      setMeta(next)
+      setVersion(Date.now())
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function remove() {
+    if (!window.confirm('Удалить логотип из КП?')) return
+    setBusy(true)
+    setError(null)
+    try {
+      await api.deleteLogo()
+      setMeta({ has_logo: false, updated_at: null })
+      setVersion(Date.now())
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="logo-card">
+      <div className="logo-card__text">
+        <h2 className="h3">Логотип в КП</h2>
+        <p className="hint">
+          PNG, JPEG или WebP до 2 МБ. Показывается в шапке PDF и на публичной странице.
+        </p>
+      </div>
+
+      {meta?.has_logo ? (
+        <div className="logo-card__preview">
+          <img src={logoUrl(version || meta.updated_at || undefined)} alt="Логотип цеха" />
+        </div>
+      ) : (
+        <p className="hint">{meta ? 'Логотип не загружен.' : 'Проверяем…'}</p>
+      )}
+
+      <div className="actions actions--tight">
+        <label className="button button--ghost button--small button--file">
+          {busy ? 'Загружаем…' : meta?.has_logo ? 'Заменить' : 'Загрузить логотип'}
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            hidden
+            disabled={busy}
+            onChange={(event) => {
+              void upload(event.target.files?.[0])
+              event.target.value = ''
+            }}
+          />
+        </label>
+        {meta?.has_logo && (
+          <button
+            type="button"
+            className="button button--ghost button--small"
+            onClick={() => void remove()}
+            disabled={busy}
+          >
+            Удалить
+          </button>
+        )}
+      </div>
+
+      {error && (
+        <p className="alert" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  )
+}
 
 export function DictionariesPage() {
   const [tab, setTab] = useState<'fabrics' | 'hardware' | 'branding' | 'products' | 'complexity' | 'settings'>(
@@ -438,6 +530,8 @@ export function DictionariesPage() {
 
           {tab === 'settings' && (
             <div className="stack">
+              <LogoCard />
+
               <div className="grid grid--2">
                 <label className="field">
                   <span>Нормо-час швеи, ₽</span>

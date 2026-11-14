@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { api, sharedPdfUrl, type Estimate } from '../api'
+import { api, logoUrl, sharedPdfUrl, type Estimate } from '../api'
 import { dateOnly, money, number, percent } from '../format'
 
 export function SharePage() {
   const { token = '' } = useParams()
   const [estimate, setEstimate] = useState<Estimate | null>(null)
+  const [logo, setLogo] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -14,6 +15,15 @@ export function SharePage() {
       .then(setEstimate)
       .catch((err: Error) => setError(err.message))
   }, [token])
+
+  useEffect(() => {
+    api
+      .getLogoMeta()
+      .then((meta) => {
+        if (meta.has_logo) setLogo(logoUrl(meta.updated_at ?? Date.now()))
+      })
+      .catch(() => undefined)
+  }, [])
 
   if (error) {
     return (
@@ -49,6 +59,7 @@ export function SharePage() {
   return (
     <div className="page page--narrow">
       <header className="page__header">
+        {logo && <img className="brand-logo" src={logo} alt="Логотип цеха" />}
         <h1>Коммерческое предложение № {estimate.number}</h1>
         <p className="page__subtitle">
           от {dateOnly(estimate.created_at)} · {estimate.contractor_name ?? 'Заказчик не указан'}
