@@ -90,7 +90,7 @@ python -m app.cli create-user --email boss@example.ru --name "Иванов И. �
 
 - **Backend:** Python 3.11, FastAPI, SQLAlchemy 2.0, SQLite (по умолчанию) / PostgreSQL, JWT в httpOnly cookie, argon2-хеши, fpdf2 для PDF, Alembic для миграций.
 - **Frontend:** React 19, TypeScript, Vite, React Router, oxlint, vitest, Playwright (сквозной E2E).
-- **Инфраструктура:** Docker Compose, Caddy (HTTPS), GitHub Actions (ruff, pytest, проверка миграций, oxlint, vitest, сборка, E2E на Docker-стенде).
+- **Инфраструктура:** Docker Compose, Caddy (HTTPS), GitHub Actions (ruff, pytest, проверка миграций, oxlint, vitest, сборка, E2E на Docker-стенде; готовые образы amd64/arm64 в Releases).
 
 ## Интерфейс
 
@@ -144,6 +144,7 @@ scripts/
   stop-lan.ps1         остановка LAN-стенда
   export-images.ps1    сохранить готовые образы в tar (перенос без Docker Hub)
   import-images.ps1    загрузить образы из tar
+  download-images.ps1  скачать готовые образы amd64/arm64 с GitHub Releases
   fix-docker-access.ps1 проверить доступ к Docker Hub и настроить зеркало
   create-shortcuts.ps1 ярлыки «М.и.Р. — сайт» и «М.и.Р. — остановить»
   backup.ps1           резервная копия базы, логотипа и outbox
@@ -227,6 +228,8 @@ docker compose exec backend python -m app.cli create-user --email boss@example.r
 
 Скрипт сам создаёт `.env`, генерирует `SECRET_KEY`, поднимает стек и печатает адрес вида `http://192.168.1.42:8080`. Демо-доступы: `manager@mir.ru` / `manager123` и `technologist@mir.ru` / `technolog123`.
 
+При первом запуске готовые образы скачиваются с GitHub Releases (amd64 или arm64 — по архитектуре Docker), поэтому Docker Hub не нужен. Повторные запуски используют уже загруженные образы и не обращаются в интернет.
+
 ### Запуск одним ярлыком
 
 Чтобы каждый раз не открывать PowerShell, создайте ярлыки один раз:
@@ -239,29 +242,43 @@ docker compose exec backend python -m app.cli create-user --email boss@example.r
 
 - проверяет Docker и при необходимости открывает Docker Desktop;
 - ждёт готовности движка (до 4 минут);
-- собирает и поднимает контейнеры, ждёт ответа `/api/health`;
+- при первом запуске скачивает готовые образы с GitHub (amd64/arm64), иначе собирает их;
+- поднимает контейнеры и ждёт ответа `/api/health`;
 - открывает сайт в браузере.
 
 Если Docker не установлен или не запустился, окно не закроется и покажет, что делать. При переносе папки проекта на другой компьютер ярлыки нужно создать заново.
+
+Принудительно пересобрать образы после изменения кода:
+
+```powershell
+.\scripts\start-lan.ps1 -Build
+```
 
 После перезагрузки сайт поднимется сам, если в Docker Desktop включить «Start Docker Desktop when you sign in»: у контейнеров стоит `restart: unless-stopped`, и они стартуют вместе с Docker.
 
 ### Если Docker Hub недоступен
 
-Сборка может упасть с ошибкой `TLS handshake timeout` на `registry-1.docker.io` — это недоступность Docker Hub, а не ошибка проекта. Варианты по порядку:
+При обычном запуске Docker Hub не нужен: `start-site.cmd` при первом запуске сам скачивает готовые образы с GitHub Releases — для amd64 или arm64, в зависимости от архитектуры Docker. Повторные запуски интернет не используют.
 
-1. Запустить проверку и автонастройку:
+Если образы не скачались:
+
+1. Скачать их вручную и загрузить в Docker:
+   ```powershell
+   .\scripts\download-images.ps1
+   .\start-site.cmd
+   ```
+2. Если нужно пересобрать образы из исходников, а Docker Hub не отвечает (`TLS handshake timeout` на `registry-1.docker.io`) — починить доступ:
    ```powershell
    .\scripts\fix-docker-access.ps1
    ```
    Скрипт проверит Docker Hub, при необходимости подберёт рабочее зеркало, добавит его в Docker Desktop (с резервной копией `daemon.json`) и перезапустит движок. Сайт на время перезапуска будет недоступен.
-2. Включить VPN или прокси для Docker Desktop: **Settings → Resources → Proxies**.
-3. Добавить зеркало реестра вручную: **Settings → Docker Engine**, в JSON добавить
+3. Включить VPN или прокси для Docker Desktop: **Settings → Resources → Proxies**.
+4. Добавить зеркало реестра вручную: **Settings → Docker Engine**, в JSON добавить
    ```json
    "registry-mirrors": ["https://mirror.gcr.io"]
    ```
    затем **Apply & restart**. Публичные зеркала бывают нестабильны — если одно не отвечает, попробуйте другое.
-4. Перенести уже собранные образы с компьютера, где сервис работает:
+5. Перенести уже собранные образы с компьютера, где сервис работает:
    ```powershell
    .\scripts\export-images.ps1          # создаст dist\5-medvedey-images.tar
    ```

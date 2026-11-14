@@ -1,10 +1,12 @@
 ﻿# Запускает сервис для внутренней сети через Docker (HTTP, порт 8080).
 # Используется для пилота или показа заказчику с другого компьютера.
+# При первом запуске скачивает готовые образы с GitHub Releases.
 # Останавливать: .\scripts\stop-lan.ps1
 
 param(
     [switch]$NoBrowser,
-    [switch]$NoBuild
+    [switch]$NoBuild,
+    [switch]$Build
 )
 
 $ErrorActionPreference = 'Stop'
@@ -24,9 +26,36 @@ if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
     exit 1
 }
 
+if ($NoBuild -and $Build) {
+    Write-Host 'Нельзя одновременно указать -NoBuild и -Build.'
+    exit 1
+}
+
 if ($NoBuild -and -not (Test-AppImages)) {
     Write-Host 'Локальные образы не найдены. Сначала загрузите архив:'
     Write-Host '  .\scripts\import-images.ps1 -Archive <путь к 5-medvedey-images.tar>'
+    exit 1
+}
+
+$needBuild = [bool]$Build
+if (-not $NoBuild -and -not $Build -and -not (Test-AppImages)) {
+    Write-Host 'Готовых образов нет — скачиваю с GitHub…'
+    try {
+        & (Join-Path $PSScriptRoot 'download-images.ps1')
+        if (-not (Test-AppImages)) {
+            throw 'образы не загрузились'
+        }
+    } catch {
+        Write-Host ''
+        Write-Host "Не удалось скачать готовые образы: $($_.Exception.Message)"
+        Write-Host 'Пробую собрать из исходников…'
+        $needBuild = $true
+    }
+}
+
+if (-not $needBuild -and -not (Test-AppImages)) {
+    Write-Host 'Образы не найдены. Запустите .\scripts\start-lan.ps1 -Build'
+    Write-Host 'или загрузите архив: .\scripts\import-images.ps1'
     exit 1
 }
 
@@ -56,7 +85,7 @@ $previousPreference = $ErrorActionPreference
 $ErrorActionPreference = 'Continue'
 
 $composeArgs = @('-f', 'docker-compose.yml', '-f', 'docker-compose.lan.yml', 'up', '-d')
-if (-not $NoBuild) {
+if ($needBuild) {
     $composeArgs += '--build'
 }
 
@@ -66,7 +95,7 @@ try {
 
     # Docker Hub может быть недоступен (TLS handshake timeout). Если образы
     # уже загружены на компьютер, поднимаем их без сборки.
-    if ($composeExit -ne 0 -and -not $NoBuild -and (Test-AppImages)) {
+    if ($composeExit -ne 0 -and $needBuild -and (Test-AppImages)) {
         Write-Host ''
         Write-Host 'Сборка не удалась — похоже, Docker Hub недоступен.'
         Write-Host 'Запускаем уже загруженные образы без сборки…'

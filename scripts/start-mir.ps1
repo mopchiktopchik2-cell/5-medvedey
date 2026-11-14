@@ -2,15 +2,16 @@
 #
 # Проверяет, установлен и запущен ли Docker, при необходимости сам открывает
 # Docker Desktop и ждёт готовности движка. Затем вызывает штатный start-lan.ps1:
-# тот создаёт .env, генерирует SECRET_KEY, собирает контейнеры, ждёт /api/health
-# и открывает сайт в браузере.
+# тот создаёт .env, генерирует SECRET_KEY, скачивает готовые образы с GitHub
+# (или собирает их), ждёт /api/health и открывает сайт в браузере.
 #
 # Обычно запускается двойным щелчком по start-site.cmd (или по ярлыку
 # «М.и.Р. — сайт» на рабочем столе).
 
 param(
     [switch]$NoBrowser,
-    [switch]$NoBuild
+    [switch]$NoBuild,
+    [switch]$Build
 )
 
 $ErrorActionPreference = 'Stop'
@@ -75,7 +76,7 @@ try {
         }
     }
 
-    & (Join-Path $PSScriptRoot 'start-lan.ps1') -NoBrowser:$NoBrowser -NoBuild:$NoBuild
+    & (Join-Path $PSScriptRoot 'start-lan.ps1') -NoBrowser:$NoBrowser -NoBuild:$NoBuild -Build:$Build
     if ($LASTEXITCODE -ne 0) {
         Write-Host ''
         Write-Host 'Запуск не удался. Подробности выше и в логах:'
