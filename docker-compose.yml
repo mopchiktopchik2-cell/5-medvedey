@@ -5,6 +5,8 @@ services:
       APP_ENV: production
       DATABASE_URL: sqlite:////app/data/app.db
       CORS_ORIGINS: http://localhost:5173,http://localhost:8080
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+      SEED_DEMO_DATA: "true"
     volumes:
       - backend-data:/app/data
     ports:

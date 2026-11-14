@@ -1,0 +1,26 @@
+# Вариант с PostgreSQL: docker compose -f docker-compose.yml -f docker-compose.postgres.yml up --build
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: mir
+      POSTGRES_USER: mir
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mir}
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mir -d mir"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    environment:
+      DATABASE_URL: postgresql+psycopg://mir:${POSTGRES_PASSWORD:-mir}@db:5432/mir
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pg-data:
